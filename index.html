@@ -118,6 +118,14 @@
             margin: 10px;
             font-size: 1.2em;
         }
+        
+        #rules {
+            max-width: 700px;
+            text-align: center;
+            margin: 20px;
+            font-size: 1em;
+            line-height: 1.5em;
+        }
     </style>
 </head>
 
@@ -133,6 +141,15 @@
     </div>
     <p id="status"></p>
     <button onclick="startNewGame()">New Game</button>
+    <div id="rules">
+        <p><strong>My personal version of Connect Four. Rules are as follows:</strong></p>
+        <p>Just like regular Connect Four, four disks lined up in any direction is a win.</p>
+        <p>However, disks can be inserted from either side of any row.</p>
+        <p>Gravity is still in force, so if a disk is pushed to the side with nothing beneath it, it will fall.</p>
+        <p>Empty spaces will be filled by sliding rows, and if the whole row is full, then a newly inserted disk will push the opposite end out of the game board.</p>
+        <p>A win may come from any move, whether a drop in a column or a slide in a row, so watch for how things can change.</p>
+        <p>Finally, if you make a move that causes a connected four for your opponent, your opponent wins. This is true even if your move creates your own connected four.</p>
+    </div>
 
     <script>
         const rows = 6,
