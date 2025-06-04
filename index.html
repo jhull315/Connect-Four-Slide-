@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Connect Four: Slide!</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 30px;
+            background: linear-gradient(135deg, #f0f8ff, #e6e6fa);
+            min-height: 100vh;
+        }
+        
+        #game {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            position: relative;
+        }
+        
+        #board-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        #columnButtons {
+            display: grid;
+            grid-template-columns: repeat(7, 50px);
+            gap: 4px;
+            margin-bottom: 10px;
+        }
+        
+        #board {
+            display: grid;
+            grid-template-columns: repeat(7, 50px);
+            grid-template-rows: repeat(6, 50px);
+            gap: 4px;
+            margin: 0;
+            background-color: #1a1a1a;
+            padding: 6px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .cell {
+            width: 50px;
+            height: 50px;
+            background: radial-gradient(circle at center, #aaa 20%, #444);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.3s ease-in;
+        }
+        
+        .player1 {
+            background: red;
+        }
+        
+        .player2 {
+            background: blue;
+        }
+        
+        button {
+            margin: 2px;
+            padding: 4px 8px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        
+        .row-controls {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            margin: 0 10px;
+            height: 100%;
+        }
+        
+        .row-controls button {
+            height: 50px;
+            width: 50px;
+            margin: 2px 0;
+        }
+        
+        .arrow {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .player1-btn {
+            background-color: red;
+            color: white;
+        }
+        
+        .player2-btn {
+            background-color: blue;
+            color: white;
+        }
+        
+        #status {
+            margin: 10px;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Connect Four: Slide!</h2>
+    <div id="board-container">
+        <div class="controls" id="columnButtons"></div>
+        <div id="game">
+            <div class="row-controls" id="rowButtonsLeft"></div>
+            <div id="board"></div>
+            <div class="row-controls" id="rowButtonsRight"></div>
+        </div>
+    </div>
+    <p id="status"></p>
+    <button onclick="startNewGame()">New Game</button>
+
+    <script>
+        const rows = 6,
+            cols = 7;
+        let board;
+        let currentPlayer;
+        const boardDiv = document.getElementById('board');
+        const status = document.getElementById('status');
+        const colDiv = document.getElementById('columnButtons');
+        const rowLeftDiv = document.getElementById('rowButtonsLeft');
+        const rowRightDiv = document.getElementById('rowButtonsRight');
+
+        function startNewGame() {
+            board = Array.from({
+                length: rows
+            }, () => Array(cols).fill(null));
+            currentPlayer = 1;
+            setupButtons();
+            update();
+            document.querySelectorAll('button').forEach(btn => btn.disabled = false);
+        }
+
+        function createBoard() {
+            boardDiv.innerHTML = '';
+            for (let r = rows - 1; r >= 0; r--) {
+                for (let c = 0; c < cols; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    if (board[r][c]) {
+                        cell.classList.add(`player${board[r][c]}`);
+                    }
+                    boardDiv.appendChild(cell);
+                }
+            }
+        }
+
+        function applyGravity() {
+            for (let c = 0; c < cols; c++) {
+                let stack = [];
+                for (let r = rows - 1; r >= 0; r--) {
+                    if (board[r][c]) stack.push(board[r][c]);
+                }
+                for (let r = 0; r < rows; r++) {
+                    board[r][c] = stack.length ? stack.pop() : null;
+                }
+            }
+        }
+
+        function dropInColumn(col) {
+            for (let r = rows - 1; r >= 0; r--) {
+                if (!board[r][col]) {
+                    board[r][col] = currentPlayer;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function insertInRowLeft(row) {
+            const newRow = Array(cols).fill(null);
+            let insertIndex = 0;
+            newRow[insertIndex++] = currentPlayer;
+            for (let c = 0; c < cols; c++) {
+                if (board[row][c] !== null) {
+                    while (insertIndex < cols && newRow[insertIndex] !== null) insertIndex++;
+                    if (insertIndex < cols) {
+                        newRow[insertIndex++] = board[row][c];
+                    }
+                }
+            }
+            board[row] = newRow;
+        }
+
+        function insertInRowRight(row) {
+            const newRow = Array(cols).fill(null);
+            let insertIndex = cols - 1;
+            newRow[insertIndex--] = currentPlayer;
+            for (let c = cols - 1; c >= 0; c--) {
+                if (board[row][c] !== null) {
+                    while (insertIndex >= 0 && newRow[insertIndex] !== null) insertIndex--;
+                    if (insertIndex >= 0) {
+                        newRow[insertIndex--] = board[row][c];
+                    }
+                }
+            }
+            board[row] = newRow;
+        }
+
+        function checkWin() {
+            const directions = [
+                [0, 1],
+                [1, 0],
+                [1, 1],
+                [1, -1]
+            ];
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const player = board[r][c];
+                    if (!player) continue;
+                    for (const [dr, dc] of directions) {
+                        let count = 0;
+                        for (let i = 0; i < 4; i++) {
+                            let nr = r + dr * i,
+                                nc = c + dc * i;
+                            if (
+                                nr >= 0 && nr < rows &&
+                                nc >= 0 && nc < cols &&
+                                board[nr][nc] === player
+                            ) {
+                                count++;
+                            } else break;
+                        }
+                        if (count === 4) return player;
+                    }
+                }
+            }
+            return null;
+        }
+
+        function update() {
+            createBoard();
+            const winner = checkWin();
+            const btnClass = `player${currentPlayer}-btn`;
+            document.querySelectorAll('.arrow').forEach(btn => {
+                btn.className = `arrow ${btnClass}`;
+            });
+            if (winner) {
+                status.textContent = `Player ${winner} wins!`;
+                disableButtons();
+            } else {
+                status.textContent = `Player ${currentPlayer}'s turn`;
+            }
+        }
+
+        function disableButtons() {
+            document.querySelectorAll('button').forEach(btn => {
+                if (btn.textContent !== 'New Game') btn.disabled = true;
+            });
+        }
+
+        function setupButtons() {
+            colDiv.innerHTML = '';
+            rowLeftDiv.innerHTML = '';
+            rowRightDiv.innerHTML = '';
+
+            for (let c = 0; c < cols; c++) {
+                const btn = document.createElement('button');
+                btn.innerHTML = '↓';
+                btn.className = `arrow player${currentPlayer}-btn`;
+                btn.onclick = () => {
+                    if (dropInColumn(c)) {
+                        applyGravity();
+                        currentPlayer = 3 - currentPlayer;
+                        update();
+                    }
+                };
+                colDiv.appendChild(btn);
+            }
+
+            for (let r = rows - 1; r >= 0; r--) {
+                const leftBtn = document.createElement('button');
+                leftBtn.innerHTML = '→';
+                leftBtn.className = `arrow player${currentPlayer}-btn`;
+                leftBtn.onclick = () => {
+                    insertInRowLeft(r);
+                    applyGravity();
+                    currentPlayer = 3 - currentPlayer;
+                    update();
+                };
+                rowLeftDiv.appendChild(leftBtn);
+
+                const rightBtn = document.createElement('button');
+                rightBtn.innerHTML = '←';
+                rightBtn.className = `arrow player${currentPlayer}-btn`;
+                rightBtn.onclick = () => {
+                    insertInRowRight(r);
+                    applyGravity();
+                    currentPlayer = 3 - currentPlayer;
+                    update();
+                };
+                rowRightDiv.appendChild(rightBtn);
+            }
+        }
+
+        startNewGame();
+    </script>
+</body>
+
+</html>
