@@ -35,7 +35,7 @@
             gap: 4px;
             margin-bottom: 10px;
         }
-        /* Ensure board is positioned relative so the SVG overlay can be absolute */
+        /* The board is relatively positioned so that the SVG win-line can overlay it */
         
         #board {
             display: grid;
@@ -120,6 +120,15 @@
             margin: 10px;
             font-size: 1.2em;
         }
+        /* AI Settings styling */
+        
+        #ai-settings {
+            margin: 10px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background: #fff;
+        }
         
         #rules {
             max-width: 700px;
@@ -143,6 +152,18 @@
     </div>
     <p id="status"></p>
     <button onclick="startNewGame()">New Game</button>
+    <!-- AI Settings -->
+    <div id="ai-settings">
+        <label>
+      <input type="checkbox" id="ai-toggle"> Play vs AI (Computer is always Player 2)
+    </label>
+        <br/>
+        <label>
+      AI Difficulty: 
+      <input type="range" id="ai-difficulty" min="1" max="5" value="3">
+      <span id="ai-difficulty-value">3</span>
+    </label>
+    </div>
     <div id="rules">
         <p><strong>My personal version of Connect Four. Rules are as follows:</strong></p>
         <p>Just like regular Connect Four, four disks lined up in any direction is a win.</p>
@@ -151,47 +172,72 @@
         <p>Empty spaces will be filled by sliding rows, and if the whole row is full, then a newly inserted disk will push the opposite end out of the game board.</p>
         <p>A win may come from any move, whether a drop in a column or a slide in a row, so watch for how things can change.</p>
         <p>Finally, if you make a move that causes a connected four for your opponent, your opponent wins. This is true even if your move creates your own connected four.</p>
+        <p><em>New stalemate rule:</em> Repeating the same moves back and forth (i.e. producing the same board state three times) results in a drawn game.</p>
     </div>
     <script>
+        // Global constants and variables.
         const rows = 6,
             cols = 7;
         let board;
         let currentPlayer;
-        // Global variable to store the SVG win overlay (if any).
         let winLineSvg = null;
+        // AI settings: AI is always Player 2.
+        let isAIEnabled = false;
+        let aiDifficulty = 3; // Levels: 1 (random) to 5 (hardest)
+        // Global move history to check for repetition (each state is serialized as a string).
+        let moveHistory = [];
+
         const boardDiv = document.getElementById('board');
         const status = document.getElementById('status');
         const colDiv = document.getElementById('columnButtons');
         const rowLeftDiv = document.getElementById('rowButtonsLeft');
         const rowRightDiv = document.getElementById('rowButtonsRight');
 
+        // AI Settings event listeners.
+        document.getElementById('ai-toggle').addEventListener('change', function() {
+            isAIEnabled = this.checked;
+        });
+        document.getElementById('ai-difficulty').addEventListener('input', function() {
+            aiDifficulty = parseInt(this.value);
+            document.getElementById('ai-difficulty-value').textContent = this.value;
+        });
+
         function startNewGame() {
-            // Initialize the board as a 2D array with all null values.
+            // Initialize the board as a 2D array (all cells null).
             board = Array.from({
                 length: rows
             }, () => Array(cols).fill(null));
             currentPlayer = 1;
-            // If an SVG win line exists from previous game, remove it.
+            // Clear any previous win overlay.
             if (winLineSvg) {
                 winLineSvg.remove();
                 winLineSvg = null;
             }
+            // Clear move history.
+            moveHistory = [];
+
             setupButtons();
             update();
-            // Display whose turn it is.
             status.textContent = `Player ${currentPlayer}'s turn`;
-            // Enable all move buttons (the "New Game" button remains enabled).
-            document.querySelectorAll('button').forEach(btn => btn.disabled = false);
+            document.querySelectorAll('button').forEach(btn => {
+                if (btn.textContent !== 'New Game') {
+                    btn.disabled = false;
+                }
+            });
+
+            // If AI is enabled and it's AI's turn (Player 2), then trigger the AI move.
+            if (isAIEnabled && currentPlayer === 2) {
+                aiMakeMove();
+            }
         }
 
         function createBoard() {
             boardDiv.innerHTML = '';
-            // If a win line already exists (when starting a new game, it will be removed),
-            // re-add it so that it remains visible on top of the board.
+            // If a win line exists, re-add it.
             if (winLineSvg) {
                 boardDiv.appendChild(winLineSvg);
             }
-            // Render each cell on the board.
+            // Render the board cells.
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     const cell = document.createElement('div');
@@ -205,7 +251,7 @@
         }
 
         function applyGravity() {
-            // For each column, gather all disks in a stack and "drop" them into place.
+            // For each column, collect all disks and drop them to the bottom.
             for (let c = 0; c < cols; c++) {
                 let stack = [];
                 for (let r = 0; r < rows; r++) {
@@ -218,7 +264,6 @@
         }
 
         function dropInColumn(col) {
-            // Drop a disk into the specified column (scanning from the bottom).
             for (let r = rows - 1; r >= 0; r--) {
                 if (!board[r][col]) {
                     board[r][col] = currentPlayer;
@@ -231,22 +276,18 @@
         }
 
         function insertInRowLeft(row) {
-            // Inserts a disk from the left side into the given row.
             if (board[row][0] === null) {
                 board[row][0] = currentPlayer;
             } else {
-                // Identify the contiguous block of disks from the left edge.
                 let end = 0;
                 while (end < cols && board[row][end] !== null) {
                     end++;
                 }
                 if (end < cols) {
-                    // Shift the block right by one cell.
                     for (let i = end; i > 0; i--) {
                         board[row][i] = board[row][i - 1];
                     }
                 } else {
-                    // If the row is full, shift the entire row right (pushing off the rightmost disk).
                     for (let i = cols - 1; i > 0; i--) {
                         board[row][i] = board[row][i - 1];
                     }
@@ -258,22 +299,18 @@
         }
 
         function insertInRowRight(row) {
-            // Inserts a disk from the right side into the given row.
             if (board[row][cols - 1] === null) {
                 board[row][cols - 1] = currentPlayer;
             } else {
-                // Identify the contiguous block of disks from the right edge.
                 let start = cols - 1;
                 while (start >= 0 && board[row][start] !== null) {
                     start--;
                 }
                 if (start >= 0) {
-                    // Shift the block left by one cell.
                     for (let i = start + 1; i < cols; i++) {
                         board[row][i - 1] = board[row][i];
                     }
                 } else {
-                    // If the row is full, shift the entire row left (pushing off the leftmost disk).
                     for (let i = 0; i < cols - 1; i++) {
                         board[row][i] = board[row][i + 1];
                     }
@@ -284,10 +321,9 @@
             checkAndSwitchTurn();
         }
 
-        // Returns an object with the winning player's number and an array of the winning cells
-        // (as [row, col] pairs) if the specified player has four aligned disks; otherwise returns null.
+        // --- WIN CHECKING AND WIN-LINE OVERLAY ---
         function checkForWinForPlayer(player) {
-            // Horizontal check.
+            // Horizontal
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c <= cols - 4; c++) {
                     if (
@@ -308,7 +344,7 @@
                     }
                 }
             }
-            // Vertical check.
+            // Vertical
             for (let c = 0; c < cols; c++) {
                 for (let r = 0; r <= rows - 4; r++) {
                     if (
@@ -329,7 +365,7 @@
                     }
                 }
             }
-            // Diagonal down-right check.
+            // Diagonal down-right
             for (let r = 0; r <= rows - 4; r++) {
                 for (let c = 0; c <= cols - 4; c++) {
                     if (
@@ -350,7 +386,7 @@
                     }
                 }
             }
-            // Diagonal down-left check.
+            // Diagonal down-left
             for (let r = 0; r <= rows - 4; r++) {
                 for (let c = 3; c < cols; c++) {
                     if (
@@ -374,11 +410,8 @@
             return null;
         }
 
-        // Creates an SVG overlay with a slashing line that passes through the centers of the winning cells.
         function displayWinLine(cells) {
-            // With board padding (6px), cell size (50px) and gap (4px):
-            // The center of cell at row r, col c is: x = 6 + 25 + c*(50+4) = 31 + 54*c,
-            // and similarly y = 31 + 54*r.
+            // Calculate the centers of the winning cells.
             const firstCell = cells[0],
                 lastCell = cells[cells.length - 1],
                 x1 = 31 + firstCell[1] * 54,
@@ -387,7 +420,6 @@
                 y2 = 31 + lastCell[0] * 54;
 
             const svgNS = "http://www.w3.org/2000/svg";
-            // Create an SVG element covering the board.
             winLineSvg = document.createElementNS(svgNS, "svg");
             winLineSvg.setAttribute("width", boardDiv.clientWidth);
             winLineSvg.setAttribute("height", boardDiv.clientHeight);
@@ -395,7 +427,6 @@
             winLineSvg.style.top = "0";
             winLineSvg.style.left = "0";
 
-            // Create a thick black line as a border.
             const lineBorder = document.createElementNS(svgNS, "line");
             lineBorder.setAttribute("x1", x1);
             lineBorder.setAttribute("y1", y1);
@@ -405,7 +436,6 @@
             lineBorder.setAttribute("stroke-width", "16");
             lineBorder.setAttribute("stroke-linecap", "round");
 
-            // Create a thinner white line on top.
             const lineWhite = document.createElementNS(svgNS, "line");
             lineWhite.setAttribute("x1", x1);
             lineWhite.setAttribute("y1", y1);
@@ -420,52 +450,75 @@
             boardDiv.appendChild(winLineSvg);
         }
 
-        // Checks for wins after a move. It first ensures that the final move is visible,
-        // then after a short delay, overlays the win line and announces the winner.
+        // --- MOVE REPETITION (STALEMATE) RULE ---
+        // Serialize the board state into a string.
+        function serializeBoard() {
+            return board.map(row => row.join(',')).join(';');
+        }
+        // Add the current board state to history.
+        function updateHistory() {
+            moveHistory.push(serializeBoard());
+        }
+        // Check if the current board state has appeared at least three times.
+        function checkForRepetition() {
+            const current = serializeBoard();
+            let count = 0;
+            for (let state of moveHistory) {
+                if (state === current) {
+                    count++;
+                }
+            }
+            return count >= 3;
+        }
+
+        // --- TURN MANAGEMENT ---
         function checkAndSwitchTurn() {
-            // Check for a win for both the current player and the opponent.
             const winCurrent = checkForWinForPlayer(currentPlayer);
             const winOpponent = checkForWinForPlayer(3 - currentPlayer);
             if (winCurrent || winOpponent) {
-                // Update the board so that the new move is clearly visible.
                 update();
                 setTimeout(() => {
-                    // If a move causes a win for the opponent, the opponent wins by trap.
                     if (winOpponent) {
                         displayWinLine(winOpponent.cells);
                         status.textContent = `Player ${3 - currentPlayer} wins by trap!`;
                         disableButtons();
-                    }
-                    // Otherwise, the current player wins.
-                    else if (winCurrent) {
+                    } else if (winCurrent) {
                         displayWinLine(winCurrent.cells);
                         status.textContent = `Player ${currentPlayer} wins!`;
                         disableButtons();
                     }
-                }, 200); // Allow 200ms for the final move to settle visually.
+                }, 200);
                 return;
             }
-            // No win: switch players.
+
+            // Update move history and check for repetition.
+            updateHistory();
+            if (checkForRepetition()) {
+                status.textContent = "Game drawn by repetition!";
+                disableButtons();
+                return;
+            }
+
             currentPlayer = 3 - currentPlayer;
             setupButtons();
             update();
+            if (isAIEnabled && currentPlayer === 2) {
+                aiMakeMove();
+            }
         }
 
         function update() {
             createBoard();
-            // Update arrow button colors to the current player's color.
             const btnClass = `player${currentPlayer}-btn`;
             document.querySelectorAll('.arrow').forEach(btn => {
                 btn.className = `arrow ${btnClass}`;
             });
-            // If no win message is active, display whose turn it is.
             if (!status.textContent.includes("wins")) {
                 status.textContent = `Player ${currentPlayer}'s turn`;
             }
         }
 
         function disableButtons() {
-            // Disable all buttons except the "New Game" button.
             document.querySelectorAll('button').forEach(btn => {
                 if (btn.textContent !== 'New Game') btn.disabled = true;
             });
@@ -476,7 +529,6 @@
             rowLeftDiv.innerHTML = '';
             rowRightDiv.innerHTML = '';
 
-            // Create drop buttons for each column.
             for (let c = 0; c < cols; c++) {
                 const btn = document.createElement('button');
                 btn.innerHTML = '↓';
@@ -485,7 +537,6 @@
                 colDiv.appendChild(btn);
             }
 
-            // Create slide buttons for each row.
             for (let r = 0; r < rows; r++) {
                 const leftBtn = document.createElement('button');
                 leftBtn.innerHTML = '→';
@@ -501,7 +552,291 @@
             }
         }
 
-        // Start a new game when the page loads.
+        // ----- AI OPPONENT CODE -----
+        // AI plays as Player 2.
+        function aiMakeMove() {
+            setTimeout(() => {
+                const move = chooseAIMove();
+                if (move.type === 'drop') {
+                    dropInColumn(move.index);
+                } else if (move.type === 'insertLeft') {
+                    insertInRowLeft(move.index);
+                } else if (move.type === 'insertRight') {
+                    insertInRowRight(move.index);
+                }
+            }, 500);
+        }
+
+        // Returns legal moves given a board (used in simulations).
+        function getLegalMoves(simBoard) {
+            let moves = [];
+            for (let c = 0; c < cols; c++) {
+                if (simBoard[0][c] === null) {
+                    moves.push({
+                        type: 'drop',
+                        index: c
+                    });
+                }
+            }
+            for (let r = 0; r < rows; r++) {
+                moves.push({
+                    type: 'insertLeft',
+                    index: r
+                });
+                moves.push({
+                    type: 'insertRight',
+                    index: r
+                });
+            }
+            return moves;
+        }
+
+        // Choose an AI move based on the selected difficulty.
+        function chooseAIMove() {
+            let legalMoves = getLegalMoves(board);
+
+            // If there is an immediate winning move for AI, take it.
+            for (let move of legalMoves) {
+                if (simulateAndCheckWin(move, 2)) {
+                    return move;
+                }
+            }
+
+            if (aiDifficulty === 1) {
+                return legalMoves[Math.floor(Math.random() * legalMoves.length)];
+            } else if (aiDifficulty === 2 || aiDifficulty === 3) {
+                // Levels 2 & 3: Attempt to block opponent’s immediate wins.
+                let oppLegalMoves = [];
+                for (let c = 0; c < cols; c++) {
+                    if (board[0][c] === null) {
+                        oppLegalMoves.push({
+                            type: 'drop',
+                            index: c
+                        });
+                    }
+                }
+                if (aiDifficulty >= 3) {
+                    for (let r = 0; r < rows; r++) {
+                        oppLegalMoves.push({
+                            type: 'insertLeft',
+                            index: r
+                        });
+                        oppLegalMoves.push({
+                            type: 'insertRight',
+                            index: r
+                        });
+                    }
+                }
+                let opponentWinningMoves = [];
+                for (let oppMove of oppLegalMoves) {
+                    if (simulateAndCheckWin(oppMove, 1)) {
+                        opponentWinningMoves.push(oppMove);
+                    }
+                }
+                let candidateMoves = [];
+                for (let candidate of legalMoves) {
+                    let sim = cloneBoard(board);
+                    simulateMoveOnBoard(sim, candidate, 2);
+                    let blocks = true;
+                    for (let oppMove of opponentWinningMoves) {
+                        let sim2 = cloneBoard(sim);
+                        simulateMoveOnBoard(sim2, oppMove, 1);
+                        if (checkForWinForPlayerOnBoard(sim2, 1)) {
+                            blocks = false;
+                            break;
+                        }
+                    }
+                    if (blocks) {
+                        candidateMoves.push(candidate);
+                    }
+                }
+                if (candidateMoves.length > 0) {
+                    return candidateMoves[Math.floor(Math.random() * candidateMoves.length)];
+                }
+                return legalMoves[Math.floor(Math.random() * legalMoves.length)];
+            } else if (aiDifficulty === 4 || aiDifficulty === 5) {
+                // Use minimax search. Level 4: Depth 2; Level 5: Depth 3.
+                let depth = (aiDifficulty === 4 ? 2 : 3);
+                let bestScore = -Infinity;
+                let bestMoves = [];
+                for (let move of legalMoves) {
+                    let sim = cloneBoard(board);
+                    simulateMoveOnBoard(sim, move, 2);
+                    let score = minimax(sim, depth, false);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMoves = [move];
+                    } else if (score === bestScore) {
+                        bestMoves.push(move);
+                    }
+                }
+                if (bestMoves.length > 0) {
+                    return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+                }
+                return legalMoves[Math.floor(Math.random() * legalMoves.length)];
+            }
+        }
+
+        // ----- AI SIMULATION HELPERS -----
+        function cloneBoard(board) {
+            return board.map(row => row.slice());
+        }
+
+        function applyGravitySim(simBoard) {
+            for (let c = 0; c < cols; c++) {
+                let stack = [];
+                for (let r = 0; r < rows; r++) {
+                    if (simBoard[r][c]) stack.push(simBoard[r][c]);
+                }
+                for (let r = rows - 1; r >= 0; r--) {
+                    simBoard[r][c] = stack.length ? stack.pop() : null;
+                }
+            }
+        }
+
+        function simulateMoveOnBoard(simBoard, move, player) {
+            if (move.type === 'drop') {
+                for (let r = rows - 1; r >= 0; r--) {
+                    if (!simBoard[r][move.index]) {
+                        simBoard[r][move.index] = player;
+                        break;
+                    }
+                }
+            } else if (move.type === 'insertLeft') {
+                let r = move.index;
+                if (simBoard[r][0] === null) {
+                    simBoard[r][0] = player;
+                } else {
+                    let end = 0;
+                    while (end < cols && simBoard[r][end] !== null) {
+                        end++;
+                    }
+                    if (end < cols) {
+                        for (let i = end; i > 0; i--) {
+                            simBoard[r][i] = simBoard[r][i - 1];
+                        }
+                    } else {
+                        for (let i = cols - 1; i > 0; i--) {
+                            simBoard[r][i] = simBoard[r][i - 1];
+                        }
+                    }
+                    simBoard[r][0] = player;
+                }
+            } else if (move.type === 'insertRight') {
+                let r = move.index;
+                if (simBoard[r][cols - 1] === null) {
+                    simBoard[r][cols - 1] = player;
+                } else {
+                    let start = cols - 1;
+                    while (start >= 0 && simBoard[r][start] !== null) {
+                        start--;
+                    }
+                    if (start >= 0) {
+                        for (let i = start + 1; i < cols; i++) {
+                            simBoard[r][i - 1] = simBoard[r][i];
+                        }
+                    } else {
+                        for (let i = 0; i < cols - 1; i++) {
+                            simBoard[r][i] = simBoard[r][i + 1];
+                        }
+                    }
+                    simBoard[r][cols - 1] = player;
+                }
+            }
+            applyGravitySim(simBoard);
+        }
+
+        function checkForWinForPlayerOnBoard(simBoard, player) {
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c <= cols - 4; c++) {
+                    if (
+                        simBoard[r][c] === player &&
+                        simBoard[r][c + 1] === player &&
+                        simBoard[r][c + 2] === player &&
+                        simBoard[r][c + 3] === player
+                    ) {
+                        return true;
+                    }
+                }
+            }
+            for (let c = 0; c < cols; c++) {
+                for (let r = 0; r <= rows - 4; r++) {
+                    if (
+                        simBoard[r][c] === player &&
+                        simBoard[r + 1][c] === player &&
+                        simBoard[r + 2][c] === player &&
+                        simBoard[r + 3][c] === player
+                    ) {
+                        return true;
+                    }
+                }
+            }
+            for (let r = 0; r <= rows - 4; r++) {
+                for (let c = 0; c <= cols - 4; c++) {
+                    if (
+                        simBoard[r][c] === player &&
+                        simBoard[r + 1][c + 1] === player &&
+                        simBoard[r + 2][c + 2] === player &&
+                        simBoard[r + 3][c + 3] === player
+                    ) {
+                        return true;
+                    }
+                }
+            }
+            for (let r = 0; r <= rows - 4; r++) {
+                for (let c = 3; c < cols; c++) {
+                    if (
+                        simBoard[r][c] === player &&
+                        simBoard[r + 1][c - 1] === player &&
+                        simBoard[r + 2][c - 2] === player &&
+                        simBoard[r + 3][c - 3] === player
+                    ) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function simulateAndCheckWin(move, player) {
+            const simBoard = cloneBoard(board);
+            simulateMoveOnBoard(simBoard, move, player);
+            return checkForWinForPlayerOnBoard(simBoard, player);
+        }
+
+        function minimax(simBoard, depth, isMaximizing) {
+            if (checkForWinForPlayerOnBoard(simBoard, 2)) {
+                return 1000;
+            }
+            if (checkForWinForPlayerOnBoard(simBoard, 1)) {
+                return -1000;
+            }
+            if (depth === 0) {
+                return 0;
+            }
+            let legal = getLegalMoves(simBoard);
+            if (isMaximizing) {
+                let maxEval = -Infinity;
+                for (let move of legal) {
+                    let boardCopy = cloneBoard(simBoard);
+                    simulateMoveOnBoard(boardCopy, move, 2);
+                    let eval = minimax(boardCopy, depth - 1, false);
+                    maxEval = Math.max(maxEval, eval);
+                }
+                return maxEval;
+            } else {
+                let minEval = Infinity;
+                for (let move of legal) {
+                    let boardCopy = cloneBoard(simBoard);
+                    simulateMoveOnBoard(boardCopy, move, 1);
+                    let eval = minimax(boardCopy, depth - 1, true);
+                    minEval = Math.min(minEval, eval);
+                }
+                return minEval;
+            }
+        }
+
+        // Start a new game automatically when the page loads.
         startNewGame();
     </script>
 </body>
