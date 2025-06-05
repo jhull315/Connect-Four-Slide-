@@ -35,6 +35,7 @@
             gap: 4px;
             margin-bottom: 10px;
         }
+        /* Ensure board is positioned relative so the SVG overlay can be absolute */
         
         #board {
             display: grid;
@@ -46,6 +47,7 @@
             padding: 6px;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            position: relative;
         }
         
         .cell {
@@ -150,12 +152,13 @@
         <p>A win may come from any move, whether a drop in a column or a slide in a row, so watch for how things can change.</p>
         <p>Finally, if you make a move that causes a connected four for your opponent, your opponent wins. This is true even if your move creates your own connected four.</p>
     </div>
-
     <script>
         const rows = 6,
             cols = 7;
         let board;
         let currentPlayer;
+        // Global variable to store the SVG win overlay (if any).
+        let winLineSvg = null;
         const boardDiv = document.getElementById('board');
         const status = document.getElementById('status');
         const colDiv = document.getElementById('columnButtons');
@@ -163,18 +166,33 @@
         const rowRightDiv = document.getElementById('rowButtonsRight');
 
         function startNewGame() {
+            // Initialize the board as a 2D array with all null values.
             board = Array.from({
                 length: rows
             }, () => Array(cols).fill(null));
             currentPlayer = 1;
+            // If an SVG win line exists from previous game, remove it.
+            if (winLineSvg) {
+                winLineSvg.remove();
+                winLineSvg = null;
+            }
             setupButtons();
             update();
+            // Display whose turn it is.
+            status.textContent = `Player ${currentPlayer}'s turn`;
+            // Enable all move buttons (the "New Game" button remains enabled).
             document.querySelectorAll('button').forEach(btn => btn.disabled = false);
         }
 
         function createBoard() {
             boardDiv.innerHTML = '';
-            for (let r = rows - 1; r >= 0; r--) {
+            // If a win line already exists (when starting a new game, it will be removed),
+            // re-add it so that it remains visible on top of the board.
+            if (winLineSvg) {
+                boardDiv.appendChild(winLineSvg);
+            }
+            // Render each cell on the board.
+            for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
@@ -187,104 +205,267 @@
         }
 
         function applyGravity() {
+            // For each column, gather all disks in a stack and "drop" them into place.
             for (let c = 0; c < cols; c++) {
                 let stack = [];
-                for (let r = rows - 1; r >= 0; r--) {
+                for (let r = 0; r < rows; r++) {
                     if (board[r][c]) stack.push(board[r][c]);
                 }
-                for (let r = 0; r < rows; r++) {
+                for (let r = rows - 1; r >= 0; r--) {
                     board[r][c] = stack.length ? stack.pop() : null;
                 }
             }
         }
 
         function dropInColumn(col) {
+            // Drop a disk into the specified column (scanning from the bottom).
             for (let r = rows - 1; r >= 0; r--) {
                 if (!board[r][col]) {
                     board[r][col] = currentPlayer;
-                    return true;
+                    applyGravity();
+                    checkAndSwitchTurn();
+                    return;
                 }
             }
-            return false;
+            console.log("Column is full!");
         }
 
         function insertInRowLeft(row) {
-            const newRow = Array(cols).fill(null);
-            let insertIndex = 0;
-            newRow[insertIndex++] = currentPlayer;
-            for (let c = 0; c < cols; c++) {
-                if (board[row][c] !== null) {
-                    while (insertIndex < cols && newRow[insertIndex] !== null) insertIndex++;
-                    if (insertIndex < cols) {
-                        newRow[insertIndex++] = board[row][c];
+            // Inserts a disk from the left side into the given row.
+            if (board[row][0] === null) {
+                board[row][0] = currentPlayer;
+            } else {
+                // Identify the contiguous block of disks from the left edge.
+                let end = 0;
+                while (end < cols && board[row][end] !== null) {
+                    end++;
+                }
+                if (end < cols) {
+                    // Shift the block right by one cell.
+                    for (let i = end; i > 0; i--) {
+                        board[row][i] = board[row][i - 1];
+                    }
+                } else {
+                    // If the row is full, shift the entire row right (pushing off the rightmost disk).
+                    for (let i = cols - 1; i > 0; i--) {
+                        board[row][i] = board[row][i - 1];
                     }
                 }
+                board[row][0] = currentPlayer;
             }
-            board[row] = newRow;
+            applyGravity();
+            checkAndSwitchTurn();
         }
 
         function insertInRowRight(row) {
-            const newRow = Array(cols).fill(null);
-            let insertIndex = cols - 1;
-            newRow[insertIndex--] = currentPlayer;
-            for (let c = cols - 1; c >= 0; c--) {
-                if (board[row][c] !== null) {
-                    while (insertIndex >= 0 && newRow[insertIndex] !== null) insertIndex--;
-                    if (insertIndex >= 0) {
-                        newRow[insertIndex--] = board[row][c];
+            // Inserts a disk from the right side into the given row.
+            if (board[row][cols - 1] === null) {
+                board[row][cols - 1] = currentPlayer;
+            } else {
+                // Identify the contiguous block of disks from the right edge.
+                let start = cols - 1;
+                while (start >= 0 && board[row][start] !== null) {
+                    start--;
+                }
+                if (start >= 0) {
+                    // Shift the block left by one cell.
+                    for (let i = start + 1; i < cols; i++) {
+                        board[row][i - 1] = board[row][i];
+                    }
+                } else {
+                    // If the row is full, shift the entire row left (pushing off the leftmost disk).
+                    for (let i = 0; i < cols - 1; i++) {
+                        board[row][i] = board[row][i + 1];
+                    }
+                }
+                board[row][cols - 1] = currentPlayer;
+            }
+            applyGravity();
+            checkAndSwitchTurn();
+        }
+
+        // Returns an object with the winning player's number and an array of the winning cells
+        // (as [row, col] pairs) if the specified player has four aligned disks; otherwise returns null.
+        function checkForWinForPlayer(player) {
+            // Horizontal check.
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c <= cols - 4; c++) {
+                    if (
+                        board[r][c] === player &&
+                        board[r][c + 1] === player &&
+                        board[r][c + 2] === player &&
+                        board[r][c + 3] === player
+                    ) {
+                        return {
+                            winner: player,
+                            cells: [
+                                [r, c],
+                                [r, c + 1],
+                                [r, c + 2],
+                                [r, c + 3]
+                            ]
+                        };
                     }
                 }
             }
-            board[row] = newRow;
-        }
-
-        function checkWin() {
-            const directions = [
-                [0, 1],
-                [1, 0],
-                [1, 1],
-                [1, -1]
-            ];
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    const player = board[r][c];
-                    if (!player) continue;
-                    for (const [dr, dc] of directions) {
-                        let count = 0;
-                        for (let i = 0; i < 4; i++) {
-                            let nr = r + dr * i,
-                                nc = c + dc * i;
-                            if (
-                                nr >= 0 && nr < rows &&
-                                nc >= 0 && nc < cols &&
-                                board[nr][nc] === player
-                            ) {
-                                count++;
-                            } else break;
-                        }
-                        if (count === 4) return player;
+            // Vertical check.
+            for (let c = 0; c < cols; c++) {
+                for (let r = 0; r <= rows - 4; r++) {
+                    if (
+                        board[r][c] === player &&
+                        board[r + 1][c] === player &&
+                        board[r + 2][c] === player &&
+                        board[r + 3][c] === player
+                    ) {
+                        return {
+                            winner: player,
+                            cells: [
+                                [r, c],
+                                [r + 1, c],
+                                [r + 2, c],
+                                [r + 3, c]
+                            ]
+                        };
+                    }
+                }
+            }
+            // Diagonal down-right check.
+            for (let r = 0; r <= rows - 4; r++) {
+                for (let c = 0; c <= cols - 4; c++) {
+                    if (
+                        board[r][c] === player &&
+                        board[r + 1][c + 1] === player &&
+                        board[r + 2][c + 2] === player &&
+                        board[r + 3][c + 3] === player
+                    ) {
+                        return {
+                            winner: player,
+                            cells: [
+                                [r, c],
+                                [r + 1, c + 1],
+                                [r + 2, c + 2],
+                                [r + 3, c + 3]
+                            ]
+                        };
+                    }
+                }
+            }
+            // Diagonal down-left check.
+            for (let r = 0; r <= rows - 4; r++) {
+                for (let c = 3; c < cols; c++) {
+                    if (
+                        board[r][c] === player &&
+                        board[r + 1][c - 1] === player &&
+                        board[r + 2][c - 2] === player &&
+                        board[r + 3][c - 3] === player
+                    ) {
+                        return {
+                            winner: player,
+                            cells: [
+                                [r, c],
+                                [r + 1, c - 1],
+                                [r + 2, c - 2],
+                                [r + 3, c - 3]
+                            ]
+                        };
                     }
                 }
             }
             return null;
         }
 
+        // Creates an SVG overlay with a slashing line that passes through the centers of the winning cells.
+        function displayWinLine(cells) {
+            // With board padding (6px), cell size (50px) and gap (4px):
+            // The center of cell at row r, col c is: x = 6 + 25 + c*(50+4) = 31 + 54*c,
+            // and similarly y = 31 + 54*r.
+            const firstCell = cells[0],
+                lastCell = cells[cells.length - 1],
+                x1 = 31 + firstCell[1] * 54,
+                y1 = 31 + firstCell[0] * 54,
+                x2 = 31 + lastCell[1] * 54,
+                y2 = 31 + lastCell[0] * 54;
+
+            const svgNS = "http://www.w3.org/2000/svg";
+            // Create an SVG element covering the board.
+            winLineSvg = document.createElementNS(svgNS, "svg");
+            winLineSvg.setAttribute("width", boardDiv.clientWidth);
+            winLineSvg.setAttribute("height", boardDiv.clientHeight);
+            winLineSvg.style.position = "absolute";
+            winLineSvg.style.top = "0";
+            winLineSvg.style.left = "0";
+
+            // Create a thick black line as a border.
+            const lineBorder = document.createElementNS(svgNS, "line");
+            lineBorder.setAttribute("x1", x1);
+            lineBorder.setAttribute("y1", y1);
+            lineBorder.setAttribute("x2", x2);
+            lineBorder.setAttribute("y2", y2);
+            lineBorder.setAttribute("stroke", "black");
+            lineBorder.setAttribute("stroke-width", "16");
+            lineBorder.setAttribute("stroke-linecap", "round");
+
+            // Create a thinner white line on top.
+            const lineWhite = document.createElementNS(svgNS, "line");
+            lineWhite.setAttribute("x1", x1);
+            lineWhite.setAttribute("y1", y1);
+            lineWhite.setAttribute("x2", x2);
+            lineWhite.setAttribute("y2", y2);
+            lineWhite.setAttribute("stroke", "white");
+            lineWhite.setAttribute("stroke-width", "8");
+            lineWhite.setAttribute("stroke-linecap", "round");
+
+            winLineSvg.appendChild(lineBorder);
+            winLineSvg.appendChild(lineWhite);
+            boardDiv.appendChild(winLineSvg);
+        }
+
+        // Checks for wins after a move. It first ensures that the final move is visible,
+        // then after a short delay, overlays the win line and announces the winner.
+        function checkAndSwitchTurn() {
+            // Check for a win for both the current player and the opponent.
+            const winCurrent = checkForWinForPlayer(currentPlayer);
+            const winOpponent = checkForWinForPlayer(3 - currentPlayer);
+            if (winCurrent || winOpponent) {
+                // Update the board so that the new move is clearly visible.
+                update();
+                setTimeout(() => {
+                    // If a move causes a win for the opponent, the opponent wins by trap.
+                    if (winOpponent) {
+                        displayWinLine(winOpponent.cells);
+                        status.textContent = `Player ${3 - currentPlayer} wins by trap!`;
+                        disableButtons();
+                    }
+                    // Otherwise, the current player wins.
+                    else if (winCurrent) {
+                        displayWinLine(winCurrent.cells);
+                        status.textContent = `Player ${currentPlayer} wins!`;
+                        disableButtons();
+                    }
+                }, 200); // Allow 200ms for the final move to settle visually.
+                return;
+            }
+            // No win: switch players.
+            currentPlayer = 3 - currentPlayer;
+            setupButtons();
+            update();
+        }
+
         function update() {
             createBoard();
-            const winner = checkWin();
+            // Update arrow button colors to the current player's color.
             const btnClass = `player${currentPlayer}-btn`;
             document.querySelectorAll('.arrow').forEach(btn => {
                 btn.className = `arrow ${btnClass}`;
             });
-            if (winner) {
-                status.textContent = `Player ${winner} wins!`;
-                disableButtons();
-            } else {
+            // If no win message is active, display whose turn it is.
+            if (!status.textContent.includes("wins")) {
                 status.textContent = `Player ${currentPlayer}'s turn`;
             }
         }
 
         function disableButtons() {
+            // Disable all buttons except the "New Game" button.
             document.querySelectorAll('button').forEach(btn => {
                 if (btn.textContent !== 'New Game') btn.disabled = true;
             });
@@ -295,45 +476,32 @@
             rowLeftDiv.innerHTML = '';
             rowRightDiv.innerHTML = '';
 
+            // Create drop buttons for each column.
             for (let c = 0; c < cols; c++) {
                 const btn = document.createElement('button');
                 btn.innerHTML = '↓';
                 btn.className = `arrow player${currentPlayer}-btn`;
-                btn.onclick = () => {
-                    if (dropInColumn(c)) {
-                        applyGravity();
-                        currentPlayer = 3 - currentPlayer;
-                        update();
-                    }
-                };
+                btn.onclick = () => dropInColumn(c);
                 colDiv.appendChild(btn);
             }
 
-            for (let r = rows - 1; r >= 0; r--) {
+            // Create slide buttons for each row.
+            for (let r = 0; r < rows; r++) {
                 const leftBtn = document.createElement('button');
                 leftBtn.innerHTML = '→';
                 leftBtn.className = `arrow player${currentPlayer}-btn`;
-                leftBtn.onclick = () => {
-                    insertInRowLeft(r);
-                    applyGravity();
-                    currentPlayer = 3 - currentPlayer;
-                    update();
-                };
+                leftBtn.onclick = () => insertInRowLeft(r);
                 rowLeftDiv.appendChild(leftBtn);
 
                 const rightBtn = document.createElement('button');
                 rightBtn.innerHTML = '←';
                 rightBtn.className = `arrow player${currentPlayer}-btn`;
-                rightBtn.onclick = () => {
-                    insertInRowRight(r);
-                    applyGravity();
-                    currentPlayer = 3 - currentPlayer;
-                    update();
-                };
+                rightBtn.onclick = () => insertInRowRight(r);
                 rowRightDiv.appendChild(rightBtn);
             }
         }
 
+        // Start a new game when the page loads.
         startNewGame();
     </script>
 </body>
