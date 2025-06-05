@@ -35,7 +35,7 @@
             gap: 4px;
             margin-bottom: 10px;
         }
-        /* The board is relatively positioned so that the SVG win-line can overlay it */
+        /* Ensure the board is relatively positioned so the SVG win-line can overlay it */
         
         #board {
             display: grid;
@@ -155,13 +155,22 @@
     <!-- AI Settings -->
     <div id="ai-settings">
         <label>
-      <input type="checkbox" id="ai-toggle"> Play vs AI (Computer is always Player 2)
+      <input type="checkbox" id="ai-toggle"> Play vs AI
     </label>
         <br/>
         <label>
       AI Difficulty: 
       <input type="range" id="ai-difficulty" min="1" max="5" value="3">
       <span id="ai-difficulty-value">3</span>
+    </label>
+        <br/>
+        <!-- New option for human side -->
+        <label>
+      Human plays as:
+      <select id="human-player">
+        <option value="1">Player 1</option>
+        <option value="2">Player 2</option>
+      </select>
     </label>
     </div>
     <div id="rules">
@@ -172,19 +181,22 @@
         <p>Empty spaces will be filled by sliding rows, and if the whole row is full, then a newly inserted disk will push the opposite end out of the game board.</p>
         <p>A win may come from any move, whether a drop in a column or a slide in a row, so watch for how things can change.</p>
         <p>Finally, if you make a move that causes a connected four for your opponent, your opponent wins. This is true even if your move creates your own connected four.</p>
-        <p><em>New stalemate rule:</em> Repeating the same moves back and forth (i.e. producing the same board state three times) results in a drawn game.</p>
+        <p><em>New rule:</em> Repeating the same board state three times (back-and-forth moves) results in a draw (stalemate).</p>
     </div>
     <script>
-        // Global constants and variables.
+        ////////////////////// Global Variables and Settings //////////////////////
         const rows = 6,
             cols = 7;
         let board;
         let currentPlayer;
         let winLineSvg = null;
-        // AI settings: AI is always Player 2.
+        // AI settings: The human side can be chosen via a dropdown.
         let isAIEnabled = false;
-        let aiDifficulty = 3; // Levels: 1 (random) to 5 (hardest)
-        // Global move history to check for repetition (each state is serialized as a string).
+        let aiDifficulty = 3; // 1 (random) … 5 (hardest)
+        // Human and AI player numbers. Default: human = 1, AI = 2.
+        let humanPlayer = 1,
+            aiPlayer = 2;
+        // Move history for repetition (stalemate) checking.
         let moveHistory = [];
 
         const boardDiv = document.getElementById('board');
@@ -201,43 +213,42 @@
             aiDifficulty = parseInt(this.value);
             document.getElementById('ai-difficulty-value').textContent = this.value;
         });
+        document.getElementById('human-player').addEventListener('change', function() {
+            humanPlayer = parseInt(this.value);
+            aiPlayer = 3 - humanPlayer;
+        });
 
+        ////////////////////// GAME INITIALIZATION AND RENDERING //////////////////////
         function startNewGame() {
-            // Initialize the board as a 2D array (all cells null).
             board = Array.from({
                 length: rows
             }, () => Array(cols).fill(null));
+            // Set humanPlayer based on UI and AI player accordingly.
+            humanPlayer = parseInt(document.getElementById('human-player').value);
+            aiPlayer = 3 - humanPlayer;
             currentPlayer = 1;
-            // Clear any previous win overlay.
             if (winLineSvg) {
                 winLineSvg.remove();
                 winLineSvg = null;
             }
-            // Clear move history.
             moveHistory = [];
-
             setupButtons();
             update();
             status.textContent = `Player ${currentPlayer}'s turn`;
             document.querySelectorAll('button').forEach(btn => {
-                if (btn.textContent !== 'New Game') {
-                    btn.disabled = false;
-                }
+                if (btn.textContent !== 'New Game') btn.disabled = false;
             });
-
-            // If AI is enabled and it's AI's turn (Player 2), then trigger the AI move.
-            if (isAIEnabled && currentPlayer === 2) {
+            // If AI is enabled and it's the AI's turn, trigger AI move.
+            if (isAIEnabled && currentPlayer === aiPlayer) {
                 aiMakeMove();
             }
         }
 
         function createBoard() {
             boardDiv.innerHTML = '';
-            // If a win line exists, re-add it.
             if (winLineSvg) {
                 boardDiv.appendChild(winLineSvg);
             }
-            // Render the board cells.
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     const cell = document.createElement('div');
@@ -251,7 +262,6 @@
         }
 
         function applyGravity() {
-            // For each column, collect all disks and drop them to the bottom.
             for (let c = 0; c < cols; c++) {
                 let stack = [];
                 for (let r = 0; r < rows; r++) {
@@ -263,6 +273,7 @@
             }
         }
 
+        ////////////////////// MOVE FUNCTIONS //////////////////////
         function dropInColumn(col) {
             for (let r = rows - 1; r >= 0; r--) {
                 if (!board[r][col]) {
@@ -321,9 +332,9 @@
             checkAndSwitchTurn();
         }
 
-        // --- WIN CHECKING AND WIN-LINE OVERLAY ---
+        ////////////////////// WIN CHECKING & WIN-LINE OVERLAY //////////////////////
         function checkForWinForPlayer(player) {
-            // Horizontal
+            // Horizontal check.
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c <= cols - 4; c++) {
                     if (
@@ -344,7 +355,7 @@
                     }
                 }
             }
-            // Vertical
+            // Vertical check.
             for (let c = 0; c < cols; c++) {
                 for (let r = 0; r <= rows - 4; r++) {
                     if (
@@ -365,7 +376,7 @@
                     }
                 }
             }
-            // Diagonal down-right
+            // Diagonal down-right.
             for (let r = 0; r <= rows - 4; r++) {
                 for (let c = 0; c <= cols - 4; c++) {
                     if (
@@ -386,7 +397,7 @@
                     }
                 }
             }
-            // Diagonal down-left
+            // Diagonal down-left.
             for (let r = 0; r <= rows - 4; r++) {
                 for (let c = 3; c < cols; c++) {
                     if (
@@ -411,7 +422,6 @@
         }
 
         function displayWinLine(cells) {
-            // Calculate the centers of the winning cells.
             const firstCell = cells[0],
                 lastCell = cells[cells.length - 1],
                 x1 = 31 + firstCell[1] * 54,
@@ -450,28 +460,25 @@
             boardDiv.appendChild(winLineSvg);
         }
 
-        // --- MOVE REPETITION (STALEMATE) RULE ---
-        // Serialize the board state into a string.
+        ////////////////////// REPETITION (STALEMATE) CHECK //////////////////////
         function serializeBoard() {
             return board.map(row => row.join(',')).join(';');
         }
-        // Add the current board state to history.
+
         function updateHistory() {
             moveHistory.push(serializeBoard());
         }
-        // Check if the current board state has appeared at least three times.
+
         function checkForRepetition() {
             const current = serializeBoard();
             let count = 0;
             for (let state of moveHistory) {
-                if (state === current) {
-                    count++;
-                }
+                if (state === current) count++;
             }
             return count >= 3;
         }
 
-        // --- TURN MANAGEMENT ---
+        ////////////////////// TURN MANAGEMENT //////////////////////
         function checkAndSwitchTurn() {
             const winCurrent = checkForWinForPlayer(currentPlayer);
             const winOpponent = checkForWinForPlayer(3 - currentPlayer);
@@ -491,10 +498,9 @@
                 return;
             }
 
-            // Update move history and check for repetition.
             updateHistory();
             if (checkForRepetition()) {
-                status.textContent = "Game drawn by repetition!";
+                status.textContent = "Game drawn by repetition (stalemate)!";
                 disableButtons();
                 return;
             }
@@ -502,7 +508,10 @@
             currentPlayer = 3 - currentPlayer;
             setupButtons();
             update();
-            if (isAIEnabled && currentPlayer === 2) {
+
+            // Trigger AI move if it's AI's turn.
+            if (isAIEnabled && currentPlayer === aiPlayer) {
+                disableButtons(); // prevent human input during AI turn.
                 aiMakeMove();
             }
         }
@@ -515,6 +524,12 @@
             });
             if (!status.textContent.includes("wins")) {
                 status.textContent = `Player ${currentPlayer}'s turn`;
+            }
+            // Disable controls if it's not the human's turn.
+            if (isAIEnabled && currentPlayer !== humanPlayer) {
+                document.querySelectorAll('.arrow').forEach(btn => btn.disabled = true);
+            } else {
+                document.querySelectorAll('.arrow').forEach(btn => btn.disabled = false);
             }
         }
 
@@ -552,8 +567,7 @@
             }
         }
 
-        // ----- AI OPPONENT CODE -----
-        // AI plays as Player 2.
+        ////////////////////// AI OPPONENT CODE //////////////////////
         function aiMakeMove() {
             setTimeout(() => {
                 const move = chooseAIMove();
@@ -567,7 +581,6 @@
             }, 500);
         }
 
-        // Returns legal moves given a board (used in simulations).
         function getLegalMoves(simBoard) {
             let moves = [];
             for (let c = 0; c < cols; c++) {
@@ -591,13 +604,13 @@
             return moves;
         }
 
-        // Choose an AI move based on the selected difficulty.
+        // Choose an AI move based on difficulty.
         function chooseAIMove() {
             let legalMoves = getLegalMoves(board);
 
-            // If there is an immediate winning move for AI, take it.
+            // Always take an immediate winning move.
             for (let move of legalMoves) {
-                if (simulateAndCheckWin(move, 2)) {
+                if (simulateAndCheckWin(move, aiPlayer)) {
                     return move;
                 }
             }
@@ -605,8 +618,8 @@
             if (aiDifficulty === 1) {
                 return legalMoves[Math.floor(Math.random() * legalMoves.length)];
             } else if (aiDifficulty === 2 || aiDifficulty === 3) {
-                // Levels 2 & 3: Attempt to block opponent’s immediate wins.
                 let oppLegalMoves = [];
+                // Level 2: consider only drop moves.
                 for (let c = 0; c < cols; c++) {
                     if (board[0][c] === null) {
                         oppLegalMoves.push({
@@ -615,7 +628,8 @@
                         });
                     }
                 }
-                if (aiDifficulty >= 3) {
+                // Level 3: also consider insert moves.
+                if (aiDifficulty === 3) {
                     for (let r = 0; r < rows; r++) {
                         oppLegalMoves.push({
                             type: 'insertLeft',
@@ -629,39 +643,36 @@
                 }
                 let opponentWinningMoves = [];
                 for (let oppMove of oppLegalMoves) {
-                    if (simulateAndCheckWin(oppMove, 1)) {
+                    if (simulateAndCheckWin(oppMove, humanPlayer)) {
                         opponentWinningMoves.push(oppMove);
                     }
                 }
                 let candidateMoves = [];
                 for (let candidate of legalMoves) {
                     let sim = cloneBoard(board);
-                    simulateMoveOnBoard(sim, candidate, 2);
+                    simulateMoveOnBoard(sim, candidate, aiPlayer);
                     let blocks = true;
                     for (let oppMove of opponentWinningMoves) {
                         let sim2 = cloneBoard(sim);
-                        simulateMoveOnBoard(sim2, oppMove, 1);
-                        if (checkForWinForPlayerOnBoard(sim2, 1)) {
+                        simulateMoveOnBoard(sim2, oppMove, humanPlayer);
+                        if (checkForWinForPlayerOnBoard(sim2, humanPlayer)) {
                             blocks = false;
                             break;
                         }
                     }
-                    if (blocks) {
-                        candidateMoves.push(candidate);
-                    }
+                    if (blocks) candidateMoves.push(candidate);
                 }
                 if (candidateMoves.length > 0) {
                     return candidateMoves[Math.floor(Math.random() * candidateMoves.length)];
                 }
                 return legalMoves[Math.floor(Math.random() * legalMoves.length)];
             } else if (aiDifficulty === 4 || aiDifficulty === 5) {
-                // Use minimax search. Level 4: Depth 2; Level 5: Depth 3.
                 let depth = (aiDifficulty === 4 ? 2 : 3);
                 let bestScore = -Infinity;
                 let bestMoves = [];
                 for (let move of legalMoves) {
                     let sim = cloneBoard(board);
-                    simulateMoveOnBoard(sim, move, 2);
+                    simulateMoveOnBoard(sim, move, aiPlayer);
                     let score = minimax(sim, depth, false);
                     if (score > bestScore) {
                         bestScore = score;
@@ -677,7 +688,7 @@
             }
         }
 
-        // ----- AI SIMULATION HELPERS -----
+        ////////////////////// AI SIMULATION HELPERS //////////////////////
         function cloneBoard(board) {
             return board.map(row => row.slice());
         }
@@ -754,9 +765,7 @@
                         simBoard[r][c + 1] === player &&
                         simBoard[r][c + 2] === player &&
                         simBoard[r][c + 3] === player
-                    ) {
-                        return true;
-                    }
+                    ) return true;
                 }
             }
             for (let c = 0; c < cols; c++) {
@@ -766,9 +775,7 @@
                         simBoard[r + 1][c] === player &&
                         simBoard[r + 2][c] === player &&
                         simBoard[r + 3][c] === player
-                    ) {
-                        return true;
-                    }
+                    ) return true;
                 }
             }
             for (let r = 0; r <= rows - 4; r++) {
@@ -778,9 +785,7 @@
                         simBoard[r + 1][c + 1] === player &&
                         simBoard[r + 2][c + 2] === player &&
                         simBoard[r + 3][c + 3] === player
-                    ) {
-                        return true;
-                    }
+                    ) return true;
                 }
             }
             for (let r = 0; r <= rows - 4; r++) {
@@ -790,9 +795,7 @@
                         simBoard[r + 1][c - 1] === player &&
                         simBoard[r + 2][c - 2] === player &&
                         simBoard[r + 3][c - 3] === player
-                    ) {
-                        return true;
-                    }
+                    ) return true;
                 }
             }
             return false;
@@ -804,22 +807,81 @@
             return checkForWinForPlayerOnBoard(simBoard, player);
         }
 
+        // Enhanced evaluation function that, for level 5 AI, also checks for trap scenarios.
+        function evaluateBoard(simBoard) {
+            // If playing level 5 AI, if both sides appear to win then it's a trap (bad for AI).
+            if (aiDifficulty === 5) {
+                if (checkForWinForPlayerOnBoard(simBoard, aiPlayer) && checkForWinForPlayerOnBoard(simBoard, humanPlayer))
+                    return -10000;
+                if (checkForWinForPlayerOnBoard(simBoard, aiPlayer)) return 10000;
+                if (checkForWinForPlayerOnBoard(simBoard, humanPlayer)) return -10000;
+            } else {
+                if (checkForWinForPlayerOnBoard(simBoard, aiPlayer)) return 10000;
+                if (checkForWinForPlayerOnBoard(simBoard, humanPlayer)) return -10000;
+            }
+            let score = 0;
+            // Evaluate horizontal windows.
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols - 3; c++) {
+                    const window = [simBoard[r][c], simBoard[r][c + 1], simBoard[r][c + 2], simBoard[r][c + 3]];
+                    score += evaluateWindow(window);
+                }
+            }
+            // Evaluate vertical windows.
+            for (let c = 0; c < cols; c++) {
+                for (let r = 0; r < rows - 3; r++) {
+                    const window = [simBoard[r][c], simBoard[r + 1][c], simBoard[r + 2][c], simBoard[r + 3][c]];
+                    score += evaluateWindow(window);
+                }
+            }
+            // Evaluate diagonal down-right windows.
+            for (let r = 0; r < rows - 3; r++) {
+                for (let c = 0; c < cols - 3; c++) {
+                    const window = [simBoard[r][c], simBoard[r + 1][c + 1], simBoard[r + 2][c + 2], simBoard[r + 3][c + 3]];
+                    score += evaluateWindow(window);
+                }
+            }
+            // Evaluate diagonal down-left windows.
+            for (let r = 0; r < rows - 3; r++) {
+                for (let c = 3; c < cols; c++) {
+                    const window = [simBoard[r][c], simBoard[r + 1][c - 1], simBoard[r + 2][c - 2], simBoard[r + 3][c - 3]];
+                    score += evaluateWindow(window);
+                }
+            }
+            return score;
+        }
+
+        function evaluateWindow(window) {
+            let score = 0;
+            const aiCount = window.filter(cell => cell === aiPlayer).length;
+            const oppCount = window.filter(cell => cell === humanPlayer).length;
+            const emptyCount = window.filter(cell => cell === null).length;
+
+            // If both are present, ignore this window.
+            if (aiCount > 0 && oppCount > 0) return 0;
+
+            if (aiCount === 4) score += 10000;
+            else if (aiCount === 3 && emptyCount === 1) score += 100;
+            else if (aiCount === 2 && emptyCount === 2) score += 10;
+
+            if (oppCount === 4) score -= 10000;
+            else if (oppCount === 3 && emptyCount === 1) score -= 80;
+            else if (oppCount === 2 && emptyCount === 2) score -= 5;
+
+            return score;
+        }
+
         function minimax(simBoard, depth, isMaximizing) {
-            if (checkForWinForPlayerOnBoard(simBoard, 2)) {
-                return 1000;
-            }
-            if (checkForWinForPlayerOnBoard(simBoard, 1)) {
-                return -1000;
-            }
-            if (depth === 0) {
-                return 0;
-            }
-            let legal = getLegalMoves(simBoard);
+            if (checkForWinForPlayerOnBoard(simBoard, aiPlayer)) return 10000;
+            if (checkForWinForPlayerOnBoard(simBoard, humanPlayer)) return -10000;
+            if (depth === 0) return evaluateBoard(simBoard);
+
+            const legal = getLegalMoves(simBoard);
             if (isMaximizing) {
                 let maxEval = -Infinity;
                 for (let move of legal) {
                     let boardCopy = cloneBoard(simBoard);
-                    simulateMoveOnBoard(boardCopy, move, 2);
+                    simulateMoveOnBoard(boardCopy, move, aiPlayer);
                     let eval = minimax(boardCopy, depth - 1, false);
                     maxEval = Math.max(maxEval, eval);
                 }
@@ -828,7 +890,7 @@
                 let minEval = Infinity;
                 for (let move of legal) {
                     let boardCopy = cloneBoard(simBoard);
-                    simulateMoveOnBoard(boardCopy, move, 1);
+                    simulateMoveOnBoard(boardCopy, move, humanPlayer);
                     let eval = minimax(boardCopy, depth - 1, true);
                     minEval = Math.min(minEval, eval);
                 }
@@ -836,7 +898,96 @@
             }
         }
 
-        // Start a new game automatically when the page loads.
+        function chooseAIMove() {
+            let legalMoves = getLegalMoves(board);
+
+            // Always take an immediate winning move.
+            for (let move of legalMoves) {
+                if (simulateAndCheckWin(move, aiPlayer)) {
+                    return move;
+                }
+            }
+
+            if (aiDifficulty === 1) {
+                return legalMoves[Math.floor(Math.random() * legalMoves.length)];
+            } else if (aiDifficulty === 2 || aiDifficulty === 3) {
+                let oppLegalMoves = [];
+                // Level 2: only drop moves.
+                for (let c = 0; c < cols; c++) {
+                    if (board[0][c] === null) {
+                        oppLegalMoves.push({
+                            type: 'drop',
+                            index: c
+                        });
+                    }
+                }
+                // Level 3: also include insert moves.
+                if (aiDifficulty === 3) {
+                    for (let r = 0; r < rows; r++) {
+                        oppLegalMoves.push({
+                            type: 'insertLeft',
+                            index: r
+                        });
+                        oppLegalMoves.push({
+                            type: 'insertRight',
+                            index: r
+                        });
+                    }
+                }
+                let opponentWinningMoves = [];
+                for (let oppMove of oppLegalMoves) {
+                    if (simulateAndCheckWin(oppMove, humanPlayer)) {
+                        opponentWinningMoves.push(oppMove);
+                    }
+                }
+                let candidateMoves = [];
+                for (let candidate of legalMoves) {
+                    let sim = cloneBoard(board);
+                    simulateMoveOnBoard(sim, candidate, aiPlayer);
+                    let blocks = true;
+                    for (let oppMove of opponentWinningMoves) {
+                        let sim2 = cloneBoard(sim);
+                        simulateMoveOnBoard(sim2, oppMove, humanPlayer);
+                        if (checkForWinForPlayerOnBoard(sim2, humanPlayer)) {
+                            blocks = false;
+                            break;
+                        }
+                    }
+                    if (blocks) candidateMoves.push(candidate);
+                }
+                if (candidateMoves.length > 0) {
+                    return candidateMoves[Math.floor(Math.random() * candidateMoves.length)];
+                }
+                return legalMoves[Math.floor(Math.random() * legalMoves.length)];
+            } else if (aiDifficulty === 4 || aiDifficulty === 5) {
+                let depth = (aiDifficulty === 4 ? 2 : 3);
+                let bestScore = -Infinity;
+                let bestMoves = [];
+                for (let move of legalMoves) {
+                    let sim = cloneBoard(board);
+                    simulateMoveOnBoard(sim, move, aiPlayer);
+                    let score = minimax(sim, depth, false);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMoves = [move];
+                    } else if (score === bestScore) {
+                        bestMoves.push(move);
+                    }
+                }
+                if (bestMoves.length > 0) {
+                    return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+                }
+                return legalMoves[Math.floor(Math.random() * legalMoves.length)];
+            }
+        }
+
+        function simulateAndCheckWin(move, player) {
+            const simBoard = cloneBoard(board);
+            simulateMoveOnBoard(simBoard, move, player);
+            return checkForWinForPlayerOnBoard(simBoard, player);
+        }
+
+        // ----- MAIN: START GAME ON LOAD -----
         startNewGame();
     </script>
 </body>
