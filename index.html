@@ -6,28 +6,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Connect Four: Slide!</title>
     <style>
+        /* Base styling */
+        
         body {
             font-family: sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-top: 30px;
+            margin: 30px;
             background: linear-gradient(135deg, #f0f8ff, #e6e6fa);
             min-height: 100vh;
         }
         
-        #game {
+        h2 {
+            margin-bottom: 10px;
+        }
+        /* Layout container for clocks and game board */
+        
+        #game-layout {
             display: flex;
-            flex-direction: row;
+            justify-content: center;
+            align-items: flex-start;
+            width: 100%;
+            max-width: 900px;
+            margin-bottom: 10px;
+        }
+        /* Left and right clock containers */
+        
+        .clockBox {
+            width: 120px;
+            display: flex;
+            flex-direction: column;
             align-items: center;
-            position: relative;
+            margin: 0 20px;
         }
         
-        #board-container {
+        .clock-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .clock-time {
+            background: #222;
+            color: #0f0;
+            padding: 5px 10px;
+            font-family: monospace;
+            font-size: 1.2em;
+            border-radius: 5px;
+            text-align: center;
+            min-width: 90px;
+        }
+        /* Game board container */
+        
+        #game-board {
             display: flex;
             flex-direction: column;
             align-items: center;
         }
+        /* Column drop button bar */
         
         #columnButtons {
             display: grid;
@@ -35,14 +71,20 @@
             gap: 4px;
             margin-bottom: 10px;
         }
-        /* Ensure the board is relatively positioned so the SVG win-line can overlay it */
+        /* The game container holding the board & row insertion buttons */
+        
+        #game {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+        }
+        /* The board, styled as a grid */
         
         #board {
             display: grid;
             grid-template-columns: repeat(7, 50px);
             grid-template-rows: repeat(6, 50px);
             gap: 4px;
-            margin: 0;
             background-color: #1a1a1a;
             padding: 6px;
             border-radius: 12px;
@@ -77,25 +119,19 @@
             border-radius: 4px;
             font-weight: bold;
         }
-        
-        .controls {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 10px;
-        }
+        /* Row insertion controls */
         
         .row-controls {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            margin: 0 10px;
-            height: 100%;
+            display: grid;
+            grid-template-rows: repeat(6, 50px);
+            gap: 4px;
+            margin: 0;
         }
         
         .row-controls button {
-            height: 50px;
             width: 50px;
-            margin: 2px 0;
+            height: 50px;
+            margin: 0;
         }
         
         .arrow {
@@ -120,14 +156,53 @@
             margin: 10px;
             font-size: 1.2em;
         }
-        /* AI Settings styling */
+        /* AI and Timer settings */
         
-        #ai-settings {
+        #ai-settings,
+        #timer-settings {
+            width: 400px;
             margin: 10px;
             padding: 8px;
             border: 1px solid #ccc;
             border-radius: 8px;
             background: #fff;
+        }
+        /* Range slider styled as a number line with tick marks.
+       We use a repeating-linear-gradient so that ticks appear at evenly spaced intervals.
+       With 1–7 values, there are 6 intervals, so we set background-size to calc(100%/6). */
+        
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            background-image: repeating-linear-gradient( to right, #666, #666 1px, transparent 1px, transparent calc(100%/6));
+            outline: none;
+            margin: 10px 0;
+        }
+        
+        input[type=range]:focus {
+            outline: none;
+        }
+        
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #666;
+            cursor: pointer;
+            margin-top: -5px;
+        }
+        /* Timer fields: increase width to 4ch and restrict values */
+        
+        input[type=number]#timer-p1-min,
+        input[type=number]#timer-p1-sec,
+        input[type=number]#timer-p2-min,
+        input[type=number]#timer-p2-sec {
+            width: 4ch;
+            text-align: right;
         }
         
         #rules {
@@ -142,14 +217,26 @@
 
 <body>
     <h2>Connect Four: Slide!</h2>
-    <div id="board-container">
-        <div class="controls" id="columnButtons"></div>
-        <div id="game">
-            <div class="row-controls" id="rowButtonsLeft"></div>
-            <div id="board"></div>
-            <div class="row-controls" id="rowButtonsRight"></div>
+    <!-- Game Layout: Clocks and Game Board -->
+    <div id="game-layout">
+        <div id="clockLeft" class="clockBox">
+            <div class="clock-label" id="clockLabelLeft"></div>
+            <div class="clock-time" id="clockTimeLeft"></div>
+        </div>
+        <div id="game-board">
+            <div id="columnButtons" class="controls"></div>
+            <div id="game">
+                <div id="rowButtonsLeft" class="row-controls"></div>
+                <div id="board"></div>
+                <div id="rowButtonsRight" class="row-controls"></div>
+            </div>
+        </div>
+        <div id="clockRight" class="clockBox">
+            <div class="clock-label" id="clockLabelRight"></div>
+            <div class="clock-time" id="clockTimeRight"></div>
         </div>
     </div>
+    <!-- Status and New Game Button -->
     <p id="status"></p>
     <button onclick="startNewGame()">New Game</button>
     <!-- AI Settings -->
@@ -159,12 +246,12 @@
     </label>
         <br/>
         <label>
-      AI Difficulty: 
-      <input type="range" id="ai-difficulty" min="1" max="5" value="3">
+      AI Difficulty:
+      <!-- Slider from 1 to 7 with tick marks -->
+      <input type="range" id="ai-difficulty" min="1" max="7" step="1" value="3">
       <span id="ai-difficulty-value">3</span>
     </label>
         <br/>
-        <!-- New option for human side -->
         <label>
       Human plays as:
       <select id="human-player">
@@ -173,16 +260,34 @@
       </select>
     </label>
     </div>
-    <div id="rules">
-        <p><strong>My personal version of Connect Four. Rules are as follows:</strong></p>
-        <p>Just like regular Connect Four, four disks lined up in any direction is a win.</p>
-        <p>However, disks can be inserted from either side of any row.</p>
-        <p>Gravity is still in force, so if a disk is pushed to the side with nothing beneath it, it will fall.</p>
-        <p>Empty spaces will be filled by sliding rows, and if the whole row is full, then a newly inserted disk will push the opposite end out of the game board.</p>
-        <p>A win may come from any move, whether a drop in a column or a slide in a row, so watch for how things can change.</p>
-        <p>Finally, if you make a move that causes a connected four for your opponent, your opponent wins. This is true even if your move creates your own connected four.</p>
-        <p><em>New rule:</em> Repeating the same board state three times (back-and-forth moves) results in a draw (stalemate).</p>
+    <!-- Timer Settings -->
+    <div id="timer-settings">
+        <label>
+      <input type="checkbox" id="timer-toggle"> Enable Timer
+    </label>
+        <br/>
+        <label>
+      Player 1 Time:
+      <input type="number" id="timer-p1-min" value="5" min="0" max="99"> min 
+      <input type="number" id="timer-p1-sec" value="0" min="0" max="59"> sec
+    </label>
+        <br/>
+        <label>
+      Player 2 Time:
+      <input type="number" id="timer-p2-min" value="5" min="0" max="99"> min 
+      <input type="number" id="timer-p2-sec" value="0" min="0" max="59"> sec
+    </label>
     </div>
+    <div id="rules">
+        <p><strong>My personal version of Connect Four. Rules are:</strong></p>
+        <p>Four disks lined up in any direction wins. However, in addition to dropping in columns, disks can be inserted from either side of any row.</p>
+        <p>Gravity is in effect – if a disk is pushed over with nothing beneath it, it will fall.</p>
+        <p>Empty spaces fill by sliding rows; if a row is full, a new disk pushes the opposite end off the board.</p>
+        <p>A win may result from any move (drop or slide), so pay attention to shifting board states.</p>
+        <p>If your move causes a connected four for your opponent (a trap), your opponent wins. This is true even if your move creates your own connected four.</p>
+        <p>Repeating the same board state three times results in a draw.</p>
+    </div>
+
     <script>
         ////////////////////// Global Variables and Settings //////////////////////
         const rows = 6,
@@ -190,22 +295,34 @@
         let board;
         let currentPlayer;
         let winLineSvg = null;
-        // AI settings: The human side can be chosen via a dropdown.
+        // AI settings
         let isAIEnabled = false;
-        let aiDifficulty = 3; // 1 (random) … 5 (hardest)
-        // Human and AI player numbers. Default: human = 1, AI = 2.
+        let aiDifficulty = 3; // Levels 1–7
         let humanPlayer = 1,
             aiPlayer = 2;
-        // Move history for repetition (stalemate) checking.
+        // Timer variables
+        let timerEnabled = false;
+        let timerP1 = 0,
+            timerP2 = 0;
+        let timerInterval = null;
+        let gameOver = false;
+        // Move history (for stalemate/repetition checking)
         let moveHistory = [];
+        // Transposition table for caching minimax evaluations.
+        let transpositionTable = {};
 
+        // DOM Elements
         const boardDiv = document.getElementById('board');
         const status = document.getElementById('status');
         const colDiv = document.getElementById('columnButtons');
         const rowLeftDiv = document.getElementById('rowButtonsLeft');
         const rowRightDiv = document.getElementById('rowButtonsRight');
+        const clockLabelLeft = document.getElementById('clockLabelLeft');
+        const clockTimeLeft = document.getElementById('clockTimeLeft');
+        const clockLabelRight = document.getElementById('clockLabelRight');
+        const clockTimeRight = document.getElementById('clockTimeRight');
 
-        // AI Settings event listeners.
+        // AI and Timer Settings listeners
         document.getElementById('ai-toggle').addEventListener('change', function() {
             isAIEnabled = this.checked;
         });
@@ -217,13 +334,38 @@
             humanPlayer = parseInt(this.value);
             aiPlayer = 3 - humanPlayer;
         });
+        document.getElementById('timer-toggle').addEventListener('change', function() {
+            timerEnabled = this.checked;
+        });
 
-        ////////////////////// GAME INITIALIZATION AND RENDERING //////////////////////
+        ////////////////////// HELPER FUNCTIONS //////////////////////
+        // Serialize a board state (accepting a specific board array)
+        function serializeBoard(boardArg) {
+            return boardArg.map(row => row.join(',')).join(';');
+        }
+
+        // Order moves by quickly evaluating the board after each move.
+        function orderMoves(legalMoves, simBoard, isMaximizing, player) {
+            // Create an array of moves with their quick score
+            let movesWithScore = legalMoves.map(move => {
+                let copy = cloneBoard(simBoard);
+                simulateMoveOnBoard(copy, move, player);
+                let score = evaluateBoard(copy);
+                return {
+                    move,
+                    score
+                };
+            });
+            // Sort descending if maximizing, ascending if minimizing.
+            movesWithScore.sort((a, b) => isMaximizing ? (b.score - a.score) : (a.score - b.score));
+            return movesWithScore.map(ms => ms.move);
+        }
+
+        ////////////////////// GAME INITIALIZATION //////////////////////
         function startNewGame() {
             board = Array.from({
                 length: rows
             }, () => Array(cols).fill(null));
-            // Set humanPlayer based on UI and AI player accordingly.
             humanPlayer = parseInt(document.getElementById('human-player').value);
             aiPlayer = 3 - humanPlayer;
             currentPlayer = 1;
@@ -231,19 +373,89 @@
                 winLineSvg.remove();
                 winLineSvg = null;
             }
+            // Clear transposition cache for each new decision/game.
+            transpositionTable = {};
             moveHistory = [];
+            gameOver = false;
+            if (document.getElementById('timer-toggle').checked) {
+                timerEnabled = true;
+                timerP1 = parseInt(document.getElementById('timer-p1-min').value) * 60 +
+                    parseInt(document.getElementById('timer-p1-sec').value);
+                timerP2 = parseInt(document.getElementById('timer-p2-min').value) * 60 +
+                    parseInt(document.getElementById('timer-p2-sec').value);
+                startTimer();
+            } else {
+                timerEnabled = false;
+                clearInterval(timerInterval);
+            }
             setupButtons();
             update();
             status.textContent = `Player ${currentPlayer}'s turn`;
             document.querySelectorAll('button').forEach(btn => {
                 if (btn.textContent !== 'New Game') btn.disabled = false;
             });
-            // If AI is enabled and it's the AI's turn, trigger AI move.
             if (isAIEnabled && currentPlayer === aiPlayer) {
+                disableButtons();
                 aiMakeMove();
             }
         }
 
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function updateTimer() {
+            if (gameOver) {
+                clearInterval(timerInterval);
+                return;
+            }
+            if (currentPlayer === 1) {
+                timerP1--;
+                if (timerP1 <= 0) {
+                    timerP1 = 0;
+                    status.textContent = "Time’s up for " + (humanPlayer === 1 ? "Player 1" : "AI") +
+                        " – " + (humanPlayer === 1 ? "Player 2 wins by timeout!" : "Player 1 wins by timeout!");
+                    disableButtons();
+                    gameOver = true;
+                    clearInterval(timerInterval);
+                }
+            } else {
+                timerP2--;
+                if (timerP2 <= 0) {
+                    timerP2 = 0;
+                    status.textContent = "Time’s up for " + (humanPlayer === 2 ? "Player 2" : "AI") +
+                        " – " + (humanPlayer === 2 ? "Player 1 wins by timeout!" : "Player 2 wins by timeout!");
+                    disableButtons();
+                    gameOver = true;
+                    clearInterval(timerInterval);
+                }
+            }
+            updateClockDisplay();
+        }
+
+        function updateClockDisplay() {
+            if (!isAIEnabled) {
+                clockLabelLeft.textContent = "Player 1:";
+                clockLabelRight.textContent = "Player 2:";
+            } else {
+                clockLabelLeft.textContent = (humanPlayer === 1) ? "Player 1:" : "AI:";
+                clockLabelRight.textContent = (humanPlayer === 2) ? "Player 2:" : "AI:";
+            }
+
+            clockTimeLeft.textContent = formatTime(timerP1);
+            clockTimeRight.textContent = formatTime(timerP2);
+        }
+
+
+
+        function formatTime(seconds) {
+            let m = Math.floor(seconds / 60);
+            let s = seconds % 60;
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        ////////////////////// BOARD RENDERING AND GRAVITY //////////////////////
         function createBoard() {
             boardDiv.innerHTML = '';
             if (winLineSvg) {
@@ -265,7 +477,9 @@
             for (let c = 0; c < cols; c++) {
                 let stack = [];
                 for (let r = 0; r < rows; r++) {
-                    if (board[r][c]) stack.push(board[r][c]);
+                    if (board[r][c]) {
+                        stack.push(board[r][c]);
+                    }
                 }
                 for (let r = rows - 1; r >= 0; r--) {
                     board[r][c] = stack.length ? stack.pop() : null;
@@ -332,9 +546,9 @@
             checkAndSwitchTurn();
         }
 
-        ////////////////////// WIN CHECKING & WIN-LINE OVERLAY //////////////////////
+        ////////////////////// WIN CHECKING & OVERLAY //////////////////////
         function checkForWinForPlayer(player) {
-            // Horizontal check.
+            // Horizontal check
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c <= cols - 4; c++) {
                     if (
@@ -342,7 +556,7 @@
                         board[r][c + 1] === player &&
                         board[r][c + 2] === player &&
                         board[r][c + 3] === player
-                    ) {
+                    )
                         return {
                             winner: player,
                             cells: [
@@ -352,10 +566,9 @@
                                 [r, c + 3]
                             ]
                         };
-                    }
                 }
             }
-            // Vertical check.
+            // Vertical check
             for (let c = 0; c < cols; c++) {
                 for (let r = 0; r <= rows - 4; r++) {
                     if (
@@ -363,7 +576,7 @@
                         board[r + 1][c] === player &&
                         board[r + 2][c] === player &&
                         board[r + 3][c] === player
-                    ) {
+                    )
                         return {
                             winner: player,
                             cells: [
@@ -373,10 +586,9 @@
                                 [r + 3, c]
                             ]
                         };
-                    }
                 }
             }
-            // Diagonal down-right.
+            // Diagonal down-right check
             for (let r = 0; r <= rows - 4; r++) {
                 for (let c = 0; c <= cols - 4; c++) {
                     if (
@@ -384,7 +596,7 @@
                         board[r + 1][c + 1] === player &&
                         board[r + 2][c + 2] === player &&
                         board[r + 3][c + 3] === player
-                    ) {
+                    )
                         return {
                             winner: player,
                             cells: [
@@ -394,10 +606,9 @@
                                 [r + 3, c + 3]
                             ]
                         };
-                    }
                 }
             }
-            // Diagonal down-left.
+            // Diagonal down-left check
             for (let r = 0; r <= rows - 4; r++) {
                 for (let c = 3; c < cols; c++) {
                     if (
@@ -405,7 +616,7 @@
                         board[r + 1][c - 1] === player &&
                         board[r + 2][c - 2] === player &&
                         board[r + 3][c - 3] === player
-                    ) {
+                    )
                         return {
                             winner: player,
                             cells: [
@@ -415,7 +626,6 @@
                                 [r + 3, c - 3]
                             ]
                         };
-                    }
                 }
             }
             return null;
@@ -428,7 +638,6 @@
                 y1 = 31 + firstCell[0] * 54,
                 x2 = 31 + lastCell[1] * 54,
                 y2 = 31 + lastCell[0] * 54;
-
             const svgNS = "http://www.w3.org/2000/svg";
             winLineSvg = document.createElementNS(svgNS, "svg");
             winLineSvg.setAttribute("width", boardDiv.clientWidth);
@@ -436,7 +645,6 @@
             winLineSvg.style.position = "absolute";
             winLineSvg.style.top = "0";
             winLineSvg.style.left = "0";
-
             const lineBorder = document.createElementNS(svgNS, "line");
             lineBorder.setAttribute("x1", x1);
             lineBorder.setAttribute("y1", y1);
@@ -445,7 +653,6 @@
             lineBorder.setAttribute("stroke", "black");
             lineBorder.setAttribute("stroke-width", "16");
             lineBorder.setAttribute("stroke-linecap", "round");
-
             const lineWhite = document.createElementNS(svgNS, "line");
             lineWhite.setAttribute("x1", x1);
             lineWhite.setAttribute("y1", y1);
@@ -454,23 +661,22 @@
             lineWhite.setAttribute("stroke", "white");
             lineWhite.setAttribute("stroke-width", "8");
             lineWhite.setAttribute("stroke-linecap", "round");
-
             winLineSvg.appendChild(lineBorder);
             winLineSvg.appendChild(lineWhite);
             boardDiv.appendChild(winLineSvg);
         }
 
         ////////////////////// REPETITION (STALEMATE) CHECK //////////////////////
-        function serializeBoard() {
-            return board.map(row => row.join(',')).join(';');
+        function serializeBoard(boardArg) {
+            return boardArg.map(row => row.join(',')).join(';');
         }
 
         function updateHistory() {
-            moveHistory.push(serializeBoard());
+            moveHistory.push(serializeBoard(board));
         }
 
         function checkForRepetition() {
-            const current = serializeBoard();
+            const current = serializeBoard(board);
             let count = 0;
             for (let state of moveHistory) {
                 if (state === current) count++;
@@ -489,29 +695,40 @@
                         displayWinLine(winOpponent.cells);
                         status.textContent = `Player ${3 - currentPlayer} wins by trap!`;
                         disableButtons();
+                        gameOver = true;
+                        clearInterval(timerInterval);
                     } else if (winCurrent) {
                         displayWinLine(winCurrent.cells);
                         status.textContent = `Player ${currentPlayer} wins!`;
                         disableButtons();
+                        gameOver = true;
+                        clearInterval(timerInterval);
                     }
                 }, 200);
                 return;
             }
-
             updateHistory();
             if (checkForRepetition()) {
                 status.textContent = "Game drawn by repetition (stalemate)!";
                 disableButtons();
+                gameOver = true;
+                clearInterval(timerInterval);
                 return;
             }
-
             currentPlayer = 3 - currentPlayer;
             setupButtons();
             update();
-
-            // Trigger AI move if it's AI's turn.
+            if (timerEnabled) {
+                if ((currentPlayer === 1 && timerP1 <= 0) || (currentPlayer === 2 && timerP2 <= 0)) {
+                    status.textContent = `Player ${currentPlayer} loses by timeout!`;
+                    disableButtons();
+                    gameOver = true;
+                    clearInterval(timerInterval);
+                    return;
+                }
+            }
             if (isAIEnabled && currentPlayer === aiPlayer) {
-                disableButtons(); // prevent human input during AI turn.
+                disableButtons();
                 aiMakeMove();
             }
         }
@@ -522,15 +739,13 @@
             document.querySelectorAll('.arrow').forEach(btn => {
                 btn.className = `arrow ${btnClass}`;
             });
-            if (!status.textContent.includes("wins")) {
+            if (!status.textContent.includes("wins") && !status.textContent.includes("drawn"))
                 status.textContent = `Player ${currentPlayer}'s turn`;
-            }
-            // Disable controls if it's not the human's turn.
-            if (isAIEnabled && currentPlayer !== humanPlayer) {
+            if (isAIEnabled && currentPlayer !== humanPlayer)
                 document.querySelectorAll('.arrow').forEach(btn => btn.disabled = true);
-            } else {
+            else
                 document.querySelectorAll('.arrow').forEach(btn => btn.disabled = false);
-            }
+            if (timerEnabled) updateClockDisplay();
         }
 
         function disableButtons() {
@@ -543,7 +758,6 @@
             colDiv.innerHTML = '';
             rowLeftDiv.innerHTML = '';
             rowRightDiv.innerHTML = '';
-
             for (let c = 0; c < cols; c++) {
                 const btn = document.createElement('button');
                 btn.innerHTML = '↓';
@@ -551,14 +765,12 @@
                 btn.onclick = () => dropInColumn(c);
                 colDiv.appendChild(btn);
             }
-
             for (let r = 0; r < rows; r++) {
                 const leftBtn = document.createElement('button');
                 leftBtn.innerHTML = '→';
                 leftBtn.className = `arrow player${currentPlayer}-btn`;
                 leftBtn.onclick = () => insertInRowLeft(r);
                 rowLeftDiv.appendChild(leftBtn);
-
                 const rightBtn = document.createElement('button');
                 rightBtn.innerHTML = '←';
                 rightBtn.className = `arrow player${currentPlayer}-btn`;
@@ -569,27 +781,23 @@
 
         ////////////////////// AI OPPONENT CODE //////////////////////
         function aiMakeMove() {
+            // Clear the transposition table at the start of each AI decision.
+            transpositionTable = {};
             setTimeout(() => {
                 const move = chooseAIMove();
-                if (move.type === 'drop') {
-                    dropInColumn(move.index);
-                } else if (move.type === 'insertLeft') {
-                    insertInRowLeft(move.index);
-                } else if (move.type === 'insertRight') {
-                    insertInRowRight(move.index);
-                }
+                if (move.type === 'drop') dropInColumn(move.index);
+                else if (move.type === 'insertLeft') insertInRowLeft(move.index);
+                else if (move.type === 'insertRight') insertInRowRight(move.index);
             }, 500);
         }
 
         function getLegalMoves(simBoard) {
             let moves = [];
             for (let c = 0; c < cols; c++) {
-                if (simBoard[0][c] === null) {
-                    moves.push({
-                        type: 'drop',
-                        index: c
-                    });
-                }
+                if (simBoard[0][c] === null) moves.push({
+                    type: 'drop',
+                    index: c
+                });
             }
             for (let r = 0; r < rows; r++) {
                 moves.push({
@@ -604,49 +812,27 @@
             return moves;
         }
 
-        // Choose an AI move based on difficulty.
+        // chooseAIMove uses our original logic for levels 1-3 and then minimax for 4-7.
         function chooseAIMove() {
             let legalMoves = getLegalMoves(board);
-
-            // Always take an immediate winning move.
-            for (let move of legalMoves) {
-                if (simulateAndCheckWin(move, aiPlayer)) {
-                    return move;
-                }
-            }
+            // Check for immediate win for AI first.
+            for (let move of legalMoves)
+                if (simulateAndCheckWin(move, aiPlayer)) return move;
 
             if (aiDifficulty === 1) {
                 return legalMoves[Math.floor(Math.random() * legalMoves.length)];
-            } else if (aiDifficulty === 2 || aiDifficulty === 3) {
+            } else if (aiDifficulty === 2) {
+                // Level 2: Consider only drop moves from human.
                 let oppLegalMoves = [];
-                // Level 2: consider only drop moves.
                 for (let c = 0; c < cols; c++) {
-                    if (board[0][c] === null) {
-                        oppLegalMoves.push({
-                            type: 'drop',
-                            index: c
-                        });
-                    }
-                }
-                // Level 3: also consider insert moves.
-                if (aiDifficulty === 3) {
-                    for (let r = 0; r < rows; r++) {
-                        oppLegalMoves.push({
-                            type: 'insertLeft',
-                            index: r
-                        });
-                        oppLegalMoves.push({
-                            type: 'insertRight',
-                            index: r
-                        });
-                    }
+                    if (board[0][c] === null) oppLegalMoves.push({
+                        type: 'drop',
+                        index: c
+                    });
                 }
                 let opponentWinningMoves = [];
-                for (let oppMove of oppLegalMoves) {
-                    if (simulateAndCheckWin(oppMove, humanPlayer)) {
-                        opponentWinningMoves.push(oppMove);
-                    }
-                }
+                for (let oppMove of oppLegalMoves)
+                    if (simulateAndCheckWin(oppMove, humanPlayer)) opponentWinningMoves.push(oppMove);
                 let candidateMoves = [];
                 for (let candidate of legalMoves) {
                     let sim = cloneBoard(board);
@@ -662,18 +848,59 @@
                     }
                     if (blocks) candidateMoves.push(candidate);
                 }
-                if (candidateMoves.length > 0) {
+                if (candidateMoves.length > 0)
                     return candidateMoves[Math.floor(Math.random() * candidateMoves.length)];
-                }
                 return legalMoves[Math.floor(Math.random() * legalMoves.length)];
-            } else if (aiDifficulty === 4 || aiDifficulty === 5) {
-                let depth = (aiDifficulty === 4 ? 2 : 3);
+            } else if (aiDifficulty === 3) {
+                // Level 3: Consider both drop and insertion moves from human.
+                let opponentLegalMoves = getLegalMoves(board);
+                let opponentWinningMoves = [];
+                for (let oppMove of opponentLegalMoves)
+                    if (simulateAndCheckWin(oppMove, humanPlayer)) opponentWinningMoves.push(oppMove);
+                let candidateMoves = [];
+                for (let candidate of legalMoves) {
+                    let sim = cloneBoard(board);
+                    simulateMoveOnBoard(sim, candidate, aiPlayer);
+                    let blocks = true;
+                    for (let oppMove of opponentWinningMoves) {
+                        let sim2 = cloneBoard(sim);
+                        simulateMoveOnBoard(sim2, oppMove, humanPlayer);
+                        if (checkForWinForPlayerOnBoard(sim2, humanPlayer)) {
+                            blocks = false;
+                            break;
+                        }
+                    }
+                    if (blocks) candidateMoves.push(candidate);
+                }
+                if (candidateMoves.length > 0)
+                    return candidateMoves[Math.floor(Math.random() * candidateMoves.length)];
+                return legalMoves[Math.floor(Math.random() * legalMoves.length)];
+            } else if (aiDifficulty >= 4 && aiDifficulty <= 7) {
+                // Levels 4-7 use deeper search via minimax with alpha-beta pruning.
+                // Choose depth based on difficulty level.
+                let depth;
+                switch (aiDifficulty) {
+                    case 4:
+                        depth = 2;
+                        break;
+                    case 5:
+                        depth = 3;
+                        break;
+                    case 6:
+                        depth = 4;
+                        break;
+                    case 7:
+                        depth = 5;
+                        break;
+                }
                 let bestScore = -Infinity;
                 let bestMoves = [];
-                for (let move of legalMoves) {
+                // Order moves first to improve pruning and search efficiency.
+                let orderedMoves = orderMoves(legalMoves, board, true, aiPlayer);
+                for (let move of orderedMoves) {
                     let sim = cloneBoard(board);
                     simulateMoveOnBoard(sim, move, aiPlayer);
-                    let score = minimax(sim, depth, false);
+                    let score = minimaxAlphaBeta(sim, depth, false, -Infinity, Infinity);
                     if (score > bestScore) {
                         bestScore = score;
                         bestMoves = [move];
@@ -681,23 +908,30 @@
                         bestMoves.push(move);
                     }
                 }
-                if (bestMoves.length > 0) {
+                if (bestMoves.length > 0)
                     return bestMoves[Math.floor(Math.random() * bestMoves.length)];
-                }
                 return legalMoves[Math.floor(Math.random() * legalMoves.length)];
             }
         }
 
+        function simulateAndCheckWin(move, player) {
+            const simBoard = cloneBoard(board);
+            simulateMoveOnBoard(simBoard, move, player);
+            return checkForWinForPlayerOnBoard(simBoard, player);
+        }
+
         ////////////////////// AI SIMULATION HELPERS //////////////////////
-        function cloneBoard(board) {
-            return board.map(row => row.slice());
+        function cloneBoard(boardArg) {
+            return boardArg.map(row => row.slice());
         }
 
         function applyGravitySim(simBoard) {
             for (let c = 0; c < cols; c++) {
                 let stack = [];
                 for (let r = 0; r < rows; r++) {
-                    if (simBoard[r][c]) stack.push(simBoard[r][c]);
+                    if (simBoard[r][c]) {
+                        stack.push(simBoard[r][c]);
+                    }
                 }
                 for (let r = rows - 1; r >= 0; r--) {
                     simBoard[r][c] = stack.length ? stack.pop() : null;
@@ -758,6 +992,7 @@
         }
 
         function checkForWinForPlayerOnBoard(simBoard, player) {
+            // Horizontal check
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c <= cols - 4; c++) {
                     if (
@@ -765,9 +1000,11 @@
                         simBoard[r][c + 1] === player &&
                         simBoard[r][c + 2] === player &&
                         simBoard[r][c + 3] === player
-                    ) return true;
+                    )
+                        return true;
                 }
             }
+            // Vertical check
             for (let c = 0; c < cols; c++) {
                 for (let r = 0; r <= rows - 4; r++) {
                     if (
@@ -775,9 +1012,11 @@
                         simBoard[r + 1][c] === player &&
                         simBoard[r + 2][c] === player &&
                         simBoard[r + 3][c] === player
-                    ) return true;
+                    )
+                        return true;
                 }
             }
+            // Diagonal down-right check
             for (let r = 0; r <= rows - 4; r++) {
                 for (let c = 0; c <= cols - 4; c++) {
                     if (
@@ -785,9 +1024,11 @@
                         simBoard[r + 1][c + 1] === player &&
                         simBoard[r + 2][c + 2] === player &&
                         simBoard[r + 3][c + 3] === player
-                    ) return true;
+                    )
+                        return true;
                 }
             }
+            // Diagonal down-left check
             for (let r = 0; r <= rows - 4; r++) {
                 for (let c = 3; c < cols; c++) {
                     if (
@@ -795,199 +1036,125 @@
                         simBoard[r + 1][c - 1] === player &&
                         simBoard[r + 2][c - 2] === player &&
                         simBoard[r + 3][c - 3] === player
-                    ) return true;
+                    )
+                        return true;
                 }
             }
             return false;
         }
 
-        function simulateAndCheckWin(move, player) {
-            const simBoard = cloneBoard(board);
-            simulateMoveOnBoard(simBoard, move, player);
-            return checkForWinForPlayerOnBoard(simBoard, player);
-        }
-
-        // Enhanced evaluation function that, for level 5 AI, also checks for trap scenarios.
-        function evaluateBoard(simBoard) {
-            // If playing level 5 AI, if both sides appear to win then it's a trap (bad for AI).
-            if (aiDifficulty === 5) {
-                if (checkForWinForPlayerOnBoard(simBoard, aiPlayer) && checkForWinForPlayerOnBoard(simBoard, humanPlayer))
-                    return -10000;
-                if (checkForWinForPlayerOnBoard(simBoard, aiPlayer)) return 10000;
-                if (checkForWinForPlayerOnBoard(simBoard, humanPlayer)) return -10000;
-            } else {
-                if (checkForWinForPlayerOnBoard(simBoard, aiPlayer)) return 10000;
-                if (checkForWinForPlayerOnBoard(simBoard, humanPlayer)) return -10000;
-            }
-            let score = 0;
-            // Evaluate horizontal windows.
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols - 3; c++) {
-                    const window = [simBoard[r][c], simBoard[r][c + 1], simBoard[r][c + 2], simBoard[r][c + 3]];
-                    score += evaluateWindow(window);
-                }
-            }
-            // Evaluate vertical windows.
-            for (let c = 0; c < cols; c++) {
-                for (let r = 0; r < rows - 3; r++) {
-                    const window = [simBoard[r][c], simBoard[r + 1][c], simBoard[r + 2][c], simBoard[r + 3][c]];
-                    score += evaluateWindow(window);
-                }
-            }
-            // Evaluate diagonal down-right windows.
-            for (let r = 0; r < rows - 3; r++) {
-                for (let c = 0; c < cols - 3; c++) {
-                    const window = [simBoard[r][c], simBoard[r + 1][c + 1], simBoard[r + 2][c + 2], simBoard[r + 3][c + 3]];
-                    score += evaluateWindow(window);
-                }
-            }
-            // Evaluate diagonal down-left windows.
-            for (let r = 0; r < rows - 3; r++) {
-                for (let c = 3; c < cols; c++) {
-                    const window = [simBoard[r][c], simBoard[r + 1][c - 1], simBoard[r + 2][c - 2], simBoard[r + 3][c - 3]];
-                    score += evaluateWindow(window);
-                }
-            }
-            return score;
-        }
-
+        // Updated evaluation function for a window of 4 cells.
         function evaluateWindow(window) {
             let score = 0;
             const aiCount = window.filter(cell => cell === aiPlayer).length;
             const oppCount = window.filter(cell => cell === humanPlayer).length;
             const emptyCount = window.filter(cell => cell === null).length;
 
-            // If both are present, ignore this window.
             if (aiCount > 0 && oppCount > 0) return 0;
-
+            if (aiCount === 3 && emptyCount === 1) score += 500;
+            if (oppCount === 3 && emptyCount === 1) score -= 500;
             if (aiCount === 4) score += 10000;
-            else if (aiCount === 3 && emptyCount === 1) score += 100;
-            else if (aiCount === 2 && emptyCount === 2) score += 10;
-
             if (oppCount === 4) score -= 10000;
-            else if (oppCount === 3 && emptyCount === 1) score -= 80;
-            else if (oppCount === 2 && emptyCount === 2) score -= 5;
-
+            if (aiCount === 2 && emptyCount === 2) score += 10;
+            if (oppCount === 2 && emptyCount === 2) score -= 5;
             return score;
         }
 
-        function minimax(simBoard, depth, isMaximizing) {
+        function evaluateBoard(simBoard) {
+            if (checkForWinForPlayerOnBoard(simBoard, aiPlayer)) return 10000;
+            if (checkForWinForPlayerOnBoard(simBoard, humanPlayer)) return -10000;
+            let score = 0;
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols - 3; c++) {
+                    const window = [
+                        simBoard[r][c],
+                        simBoard[r][c + 1],
+                        simBoard[r][c + 2],
+                        simBoard[r][c + 3]
+                    ];
+                    score += evaluateWindow(window);
+                }
+            }
+            for (let c = 0; c < cols; c++) {
+                for (let r = 0; r < rows - 3; r++) {
+                    const window = [
+                        simBoard[r][c],
+                        simBoard[r + 1][c],
+                        simBoard[r + 2][c],
+                        simBoard[r + 3][c]
+                    ];
+                    score += evaluateWindow(window);
+                }
+            }
+            for (let r = 0; r < rows - 3; r++) {
+                for (let c = 0; c < cols - 3; c++) {
+                    const window = [
+                        simBoard[r][c],
+                        simBoard[r + 1][c + 1],
+                        simBoard[r + 2][c + 2],
+                        simBoard[r + 3][c + 3]
+                    ];
+                    score += evaluateWindow(window);
+                }
+            }
+            for (let r = 0; r < rows - 3; r++) {
+                for (let c = 3; c < cols; c++) {
+                    const window = [
+                        simBoard[r][c],
+                        simBoard[r + 1][c - 1],
+                        simBoard[r + 2][c - 2],
+                        simBoard[r + 3][c - 3]
+                    ];
+                    score += evaluateWindow(window);
+                }
+            }
+            return score;
+        }
+
+        // Minimax function with alpha-beta pruning and transposition table caching.
+        function minimaxAlphaBeta(simBoard, depth, isMaximizing, alpha, beta) {
+            const key = serializeBoard(simBoard) + "_" + depth + "_" + (isMaximizing ? "max" : "min");
+            if (transpositionTable[key] !== undefined) return transpositionTable[key];
             if (checkForWinForPlayerOnBoard(simBoard, aiPlayer)) return 10000;
             if (checkForWinForPlayerOnBoard(simBoard, humanPlayer)) return -10000;
             if (depth === 0) return evaluateBoard(simBoard);
 
-            const legal = getLegalMoves(simBoard);
+            let legal = getLegalMoves(simBoard);
+            legal = orderMoves(legal, simBoard, isMaximizing, isMaximizing ? aiPlayer : humanPlayer);
+
             if (isMaximizing) {
                 let maxEval = -Infinity;
                 for (let move of legal) {
                     let boardCopy = cloneBoard(simBoard);
                     simulateMoveOnBoard(boardCopy, move, aiPlayer);
-                    let eval = minimax(boardCopy, depth - 1, false);
-                    maxEval = Math.max(maxEval, eval);
+                    let evalScore = minimaxAlphaBeta(boardCopy, depth - 1, false, alpha, beta);
+                    maxEval = Math.max(maxEval, evalScore);
+                    alpha = Math.max(alpha, evalScore);
+                    if (beta <= alpha) break;
                 }
+                transpositionTable[key] = maxEval;
                 return maxEval;
             } else {
                 let minEval = Infinity;
                 for (let move of legal) {
                     let boardCopy = cloneBoard(simBoard);
                     simulateMoveOnBoard(boardCopy, move, humanPlayer);
-                    let eval = minimax(boardCopy, depth - 1, true);
-                    minEval = Math.min(minEval, eval);
+                    let evalScore = minimaxAlphaBeta(boardCopy, depth - 1, true, alpha, beta);
+                    minEval = Math.min(minEval, evalScore);
+                    beta = Math.min(beta, evalScore);
+                    if (beta <= alpha) break;
                 }
+                transpositionTable[key] = minEval;
                 return minEval;
             }
         }
 
-        function chooseAIMove() {
-            let legalMoves = getLegalMoves(board);
-
-            // Always take an immediate winning move.
-            for (let move of legalMoves) {
-                if (simulateAndCheckWin(move, aiPlayer)) {
-                    return move;
-                }
-            }
-
-            if (aiDifficulty === 1) {
-                return legalMoves[Math.floor(Math.random() * legalMoves.length)];
-            } else if (aiDifficulty === 2 || aiDifficulty === 3) {
-                let oppLegalMoves = [];
-                // Level 2: only drop moves.
-                for (let c = 0; c < cols; c++) {
-                    if (board[0][c] === null) {
-                        oppLegalMoves.push({
-                            type: 'drop',
-                            index: c
-                        });
-                    }
-                }
-                // Level 3: also include insert moves.
-                if (aiDifficulty === 3) {
-                    for (let r = 0; r < rows; r++) {
-                        oppLegalMoves.push({
-                            type: 'insertLeft',
-                            index: r
-                        });
-                        oppLegalMoves.push({
-                            type: 'insertRight',
-                            index: r
-                        });
-                    }
-                }
-                let opponentWinningMoves = [];
-                for (let oppMove of oppLegalMoves) {
-                    if (simulateAndCheckWin(oppMove, humanPlayer)) {
-                        opponentWinningMoves.push(oppMove);
-                    }
-                }
-                let candidateMoves = [];
-                for (let candidate of legalMoves) {
-                    let sim = cloneBoard(board);
-                    simulateMoveOnBoard(sim, candidate, aiPlayer);
-                    let blocks = true;
-                    for (let oppMove of opponentWinningMoves) {
-                        let sim2 = cloneBoard(sim);
-                        simulateMoveOnBoard(sim2, oppMove, humanPlayer);
-                        if (checkForWinForPlayerOnBoard(sim2, humanPlayer)) {
-                            blocks = false;
-                            break;
-                        }
-                    }
-                    if (blocks) candidateMoves.push(candidate);
-                }
-                if (candidateMoves.length > 0) {
-                    return candidateMoves[Math.floor(Math.random() * candidateMoves.length)];
-                }
-                return legalMoves[Math.floor(Math.random() * legalMoves.length)];
-            } else if (aiDifficulty === 4 || aiDifficulty === 5) {
-                let depth = (aiDifficulty === 4 ? 2 : 3);
-                let bestScore = -Infinity;
-                let bestMoves = [];
-                for (let move of legalMoves) {
-                    let sim = cloneBoard(board);
-                    simulateMoveOnBoard(sim, move, aiPlayer);
-                    let score = minimax(sim, depth, false);
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestMoves = [move];
-                    } else if (score === bestScore) {
-                        bestMoves.push(move);
-                    }
-                }
-                if (bestMoves.length > 0) {
-                    return bestMoves[Math.floor(Math.random() * bestMoves.length)];
-                }
-                return legalMoves[Math.floor(Math.random() * legalMoves.length)];
-            }
+        // Fallback minimax (calls the alpha-beta version).
+        function minimax(simBoard, depth, isMaximizing) {
+            return minimaxAlphaBeta(simBoard, depth, isMaximizing, -Infinity, Infinity);
         }
 
-        function simulateAndCheckWin(move, player) {
-            const simBoard = cloneBoard(board);
-            simulateMoveOnBoard(simBoard, move, player);
-            return checkForWinForPlayerOnBoard(simBoard, player);
-        }
-
-        // ----- MAIN: START GAME ON LOAD -----
+        // Start the game when the page loads.
         startNewGame();
     </script>
 </body>
